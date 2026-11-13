@@ -17,7 +17,7 @@ import java.util.ArrayList;
 public class VoiceActivity extends Activity {
     private static final int REQ = 7301;
     static String last;
-    static final int VERSION = 2;
+    static final int VERSION = 3;
     private static final String[] ZEMER = { "com.jtech.zemer.drive", "com.jtech.zemer" };
     private static final String DRIVEDECK = "ru.drivedeck.launcher";
 
@@ -87,6 +87,12 @@ public class VoiceActivity extends Activity {
     boolean handle(String t) {
         // --- DriveDeck maintenance (GitHub updates / remote log)
         if (has(t, "שלח לוג", "תשלח לוג", "שלח את הלוג", "תשלח את הלוג", "לוג")) return dd("SEND_LOG", "שולח לוג…");
+        // --- ZemerDrive: like the song / follow its artist (through DriveDeck, which holds the media session)
+        if (has(t, "עקוב אחרי האמן", "עקוב אחרי הזמר", "תעקוב אחרי האמן", "תעקוב אחרי הזמר", "הוסף את האמן", "תוסיף את האמן",
+                "הוסף את הזמר", "תוסיף את הזמר", "הוסף אמן", "עקוב אחריו", "הוסף למעקב", "תוסיף למעקב"))
+            return dd("FOLLOW_ARTIST", "מוסיף את האמן למעקב…");
+        if (has(t, "לייק", "תן לייק", "תעשה לייק", "אהבתי", "אני אוהב את השיר", "שיר אהוב", "הסר לייק"))
+            return dd("LIKE", "לייק…");
         if (has(t, "בדוק עדכונים", "תבדוק עדכונים", "בדוק עדכון", "עדכונים", "עדכן תוכנה", "עדכן גרסה")) return dd("CHECK_UPDATE", "בודק עדכונים…");
 
         // --- media transport
