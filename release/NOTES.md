@@ -1,5 +1,5 @@
-DriveDeck 0.6.7 Hebrew he-5 + Hebrew voice assistant 3
+DriveDeck 0.6.7 Hebrew he-6
 
-- ZemerDrive on the home screen: the heart on the music card now works with ZemerDrive (its like button is recognised, also in Hebrew).
-- Second tap on a filled heart = follow the song's artist in ZemerDrive (needs a ZemerDrive build with the DRIVE_FOLLOW_ARTIST command).
-- Voice: "לייק" / "תן לייק" and "עקוב אחרי האמן" / "הוסף את האמן".
+- DriveDeck stays in front after power-on / wake-up: for 2 minutes after a boot or car wake, the Topway (Dofun) launcher that the firmware starts by itself is replaced by DriveDeck as soon as it appears.
+- Car wake is also detected from the Topway ignition broadcasts (com.unisound.intent.action.ACC_ON / DO_WAKEUP).
+- Includes he-5: ZemerDrive like on the home screen, follow artist (second tap on the heart), voice like/follow.

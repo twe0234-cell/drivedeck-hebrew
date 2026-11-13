@@ -50,7 +50,7 @@ import java.util.TimeZone;
  */
 public final class HeRemote {
     /** This build's number; a release he-N with N greater than this one updates DriveDeck. */
-    public static final int BUILD = 5;
+    public static final int BUILD = 6;
 
     static final String UPDATE_REPO = "twe0234-cell/drivedeck-hebrew";
     static final String LOG_REPO = "twe0234-cell/zemer-drive";
@@ -84,6 +84,7 @@ public final class HeRemote {
         sStarted = true;
         final Context app = ctx.getApplicationContext() != null ? ctx.getApplicationContext() : ctx;
         installCrashHandler(app);
+        HeHome.onWake(app); // process start = boot: the firmware's launcher may come up over DriveDeck
         SharedPreferences p = prefs(app);
         if (p.getBoolean("post_update_wake", false)) {
             // first start after a self-update: reconnect OBD like a car wake

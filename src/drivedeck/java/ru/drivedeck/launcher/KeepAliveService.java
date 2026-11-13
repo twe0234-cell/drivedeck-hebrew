@@ -56,13 +56,25 @@ public class KeepAliveService extends Service {
                         long off = sScreenOffAt;
                         sScreenOffAt = -1L;
                         // a real sleep (car was switched off), not a short screen blank
-                        if (off < 0 || now - off >= 30000L) RootBootEnforcer.onCarWake(c);
+                        if (off < 0 || now - off >= 30000L) {
+                            HeHome.onWake(c);
+                            RootBootEnforcer.onCarWake(c);
+                        }
+                    } else if (a != null) {
+                        // Topway ignition / wake (com.unisound.intent.action.ACC_ON, DO_WAKEUP)
+                        android.util.Log.i("DriveDeckHe", "car broadcast: " + a);
+                        HeHome.onWake(c);
+                        RootBootEnforcer.onCarWake(c);
                     }
                 }
             };
             IntentFilter f = new IntentFilter();
             f.addAction("android.intent.action.SCREEN_ON");
             f.addAction("android.intent.action.SCREEN_OFF");
+            f.addAction("com.unisound.intent.action.ACC_ON");
+            f.addAction("com.unisound.intent.action.DO_WAKEUP");
+            f.addAction("com.tw.action.ACC_ON");
+            f.addAction("com.topway.action.ACC_ON");
             registerReceiver(screenReceiver, f);
         } catch (Throwable ignored) { }
     }
