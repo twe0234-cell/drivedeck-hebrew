@@ -1,0 +1,1 @@
+package android.app; public abstract class Service extends android.content.ContextWrapper { public void onCreate(){} public void onDestroy(){} public int onStartCommand(android.content.Intent i,int f,int s){return 0;} public abstract android.os.IBinder onBind(android.content.Intent i); public final void startForeground(int id, Notification n){}}

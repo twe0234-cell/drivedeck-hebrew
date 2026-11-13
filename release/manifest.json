@@ -1,0 +1,19 @@
+{
+  "build": 4,
+  "apps": [
+    {
+      "package": "ru.drivedeck.launcher",
+      "build": 4,
+      "file": "DriveDeck-0.6.7-Hebrew-he4.apk",
+      "size": 1082116,
+      "sha256": "909284bd3b835992b8b9736ddddf29ae9b14fd70318705c802456bc968441415"
+    },
+    {
+      "package": "il.carvoice.he",
+      "versionCode": 2,
+      "file": "HebrewVoice-Car-2.apk",
+      "size": 16856,
+      "sha256": "90789747743d2a81b7b6c449350b765fc09ffd76715990ec459ee185591d498f"
+    }
+  ]
+}

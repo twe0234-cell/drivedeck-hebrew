@@ -1,0 +1,50 @@
+name: Publish DriveDeck Hebrew release
+
+# A push that changes release/manifest.json publishes it as GitHub release he-<build> with the APKs.
+# Every head unit with DriveDeck Hebrew he-4 or later checks the releases every few hours and updates itself.
+on:
+  push:
+    paths:
+      - 'release/manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the APKs against the manifest
+        run: |
+          python3 - <<'EOF'
+          import hashlib, json, os
+          m = json.load(open("release/manifest.json"))
+          for a in m["apps"]:
+              p = os.path.join("release", a["file"])
+              b = open(p, "rb").read()
+              assert len(b) == a["size"], (p, len(b), a["size"])
+              assert hashlib.sha256(b).hexdigest() == a["sha256"], p
+              print("ok", p)
+          EOF
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BUILD=$(python3 -c 'import json;print(json.load(open("release/manifest.json"))["build"])')
+          TAG="he-$BUILD"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already published"; exit 0
+          fi
+          NOTES=release/NOTES.md; [ -f "$NOTES" ] || { echo "- build $BUILD" > /tmp/notes.md; NOTES=/tmp/notes.md; }
+          FILES=$(python3 -c 'import json;print(" ".join("release/"+a["file"] for a in json.load(open("release/manifest.json"))["apps"]))')
+          gh release create "$TAG" release/manifest.json $FILES \
+            --target "$GITHUB_SHA" --title "DriveDeck Hebrew he-$BUILD" --notes-file "$NOTES" --latest
+          echo "published $TAG"

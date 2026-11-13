@@ -1,0 +1,1 @@
+package android.bluetooth; public final class BluetoothAdapter { public static BluetoothAdapter getDefaultAdapter(){return null;} public java.util.Set<BluetoothDevice> getBondedDevices(){return null;} public boolean isEnabled(){return false;} }
