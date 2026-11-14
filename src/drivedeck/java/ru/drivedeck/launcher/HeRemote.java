@@ -50,7 +50,7 @@ import java.util.TimeZone;
  */
 public final class HeRemote {
     /** This build's number; a release he-N with N greater than this one updates DriveDeck. */
-    public static final int BUILD = 6;
+    public static final int BUILD = 7;
 
     static final String UPDATE_REPO = "twe0234-cell/drivedeck-hebrew";
     static final String LOG_REPO = "twe0234-cell/zemer-drive";
@@ -116,9 +116,13 @@ public final class HeRemote {
         }
         if ("ru.drivedeck.he.LIKE".equals(a)) { toast(app, HeMedia.sendToZemer(app, HeMedia.ACTION_LIKE)); return; }
         if ("ru.drivedeck.he.FOLLOW_ARTIST".equals(a)) { toast(app, HeMedia.sendToZemer(app, HeMedia.ACTION_FOLLOW)); return; }
+        final String query = intent.getStringExtra("query");
+        Log.i(TAG, "command " + a);
         new Thread(new Runnable() {
             public void run() {
-                if (ACTION_CHECK_UPDATE.equals(a)) {
+                if ("ru.drivedeck.he.PLAY".equals(a)) {
+                    toast(app, HeMedia.playSearch(app, query));
+                } else if (ACTION_CHECK_UPDATE.equals(a)) {
                     toast(app, "DriveDeck: בודק עדכונים…");
                     toast(app, "DriveDeck: " + checkUpdate(app, true));
                 } else if (ACTION_SEND_LOG.equals(a)) {
