@@ -50,7 +50,7 @@ import java.util.TimeZone;
  */
 public final class HeRemote {
     /** This build's number; a release he-N with N greater than this one updates DriveDeck. */
-    public static final int BUILD = 7;
+    public static final int BUILD = 8;
 
     static final String UPDATE_REPO = "twe0234-cell/drivedeck-hebrew";
     static final String LOG_REPO = "twe0234-cell/zemer-drive";
@@ -116,6 +116,7 @@ public final class HeRemote {
         }
         if ("ru.drivedeck.he.LIKE".equals(a)) { toast(app, HeMedia.sendToZemer(app, HeMedia.ACTION_LIKE)); return; }
         if ("ru.drivedeck.he.FOLLOW_ARTIST".equals(a)) { toast(app, HeMedia.sendToZemer(app, HeMedia.ACTION_FOLLOW)); return; }
+        if ("ru.drivedeck.he.OBD".equals(a)) { HeObdScreen.open(app); return; }
         final String query = intent.getStringExtra("query");
         Log.i(TAG, "command " + a);
         new Thread(new Runnable() {
@@ -452,6 +453,7 @@ public final class HeRemote {
             b.append("obd: adapter=").append(o.getString("name", "")).append(" addr=").append(empty(o.getString("address", "")) ? "-" : "set")
                     .append(" profile=").append(o.getString("profile_id", "")).append(" protocol=").append(o.getInt("protocol", 0))
                     .append(" error=").append(o.getString("adapter_error", "")).append(" idle=").append(obdIdle(app)).append('\n');
+            b.append("obd speed: ").append(HeObd.headerLine()).append('\n');
         } catch (Throwable ignored) { }
         try {
             android.content.ContentResolver cr = app.getContentResolver();

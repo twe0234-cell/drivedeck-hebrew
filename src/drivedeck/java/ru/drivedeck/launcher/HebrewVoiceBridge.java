@@ -57,6 +57,7 @@ public final class HebrewVoiceBridge {
     /** ASSIST / VOICE_ASSIST / VOICE_COMMAND / SEARCH_LONG_PRESS delivered to DriveDeck. */
     public static boolean onIntent(Context c, Intent i) {
         if (i == null) return false;
+        if (HeObdScreen.onIntent(c, i)) return true;
         String a = i.getAction();
         if (a == null) return false;
         if (!a.equals("android.intent.action.ASSIST") && !a.equals("android.intent.action.VOICE_ASSIST")

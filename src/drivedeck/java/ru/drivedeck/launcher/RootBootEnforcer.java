@@ -49,6 +49,7 @@ public class RootBootEnforcer {
         Context app = ctx.getApplicationContext();
         if (app == null) app = ctx;
         initDefaults(app);
+        HeObd.init(app);
         enforce(app);
         HeRemote.start(app);
     }
@@ -124,6 +125,11 @@ public class RootBootEnforcer {
 
     static boolean isIdle(c.T5 t) {
         return t.K == null && t.J1 == null;
+    }
+
+    /** An adapter connection is open (classic Bluetooth stream or BLE). */
+    static boolean isConnected(c.T5 t) {
+        return t != null && !isIdle(t);
     }
 
     private static void autoPickAdapter(Context app) {

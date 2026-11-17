@@ -33,6 +33,7 @@ public class SettingsActivity extends Activity {
             + "זמר דרייב: \"לייק\", \"עקוב אחרי האמן\"\n"
             + "ניווט: \"נווט הביתה\", \"נווט לעבודה\", \"קח אותי לירושלים\"\n"
             + "אפליקציות: \"פתח וויז\", \"פתח יוטיוב\", \"פתח הגדרות\" (כל אפליקציה בשמה), \"מסך הבית\"\n"
+            + "רכב: \"בדיקת רכב\", \"קודי תקלה\"\n"
             + "מערכת: \"בדוק עדכונים\", \"שלח לוג\", \"עזרה\"";
 
     private TextView history;
@@ -90,6 +91,9 @@ public class SettingsActivity extends Activity {
                 send(SettingsActivity.this, "SET_TOKEN", "token", t);
                 token.setText("");
             }
+        }));
+        col.addView(button("בדיקת רכב (OBD)", new View.OnClickListener() {
+            public void onClick(View v) { send(SettingsActivity.this, "OBD", null, null); }
         }));
         col.addView(button("בדוק עדכונים עכשיו", new View.OnClickListener() {
             public void onClick(View v) { send(SettingsActivity.this, "CHECK_UPDATE", null, null); toast("נשלח ל-DriveDeck"); }

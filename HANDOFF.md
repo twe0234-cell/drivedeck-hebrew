@@ -3,6 +3,19 @@
 **Reply to the owner in Hebrew.** Rooted Topway TS18 (UIS8581A, Android 10), Seat Leon 5F 1.2 TSI (CYVB). No adb:
 diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
 
+## State (he-8, voice 5)
+* he-8: OBD check (`HeObd`, `HeObdMath`, `HeObdScreen`). Smali hook in `c.T5.M(ZString)`: right after each `RX` Log.i
+  (v10 = command, v9 = raw answer) → `HeObd.onRx`. Extra PIDs go through DriveDeck's own queue `T5.c2` (posted on `T5.c`),
+  never written to the socket directly (one command in flight). Background: 0105/0142 every ~100 answers + alerts; while the
+  screen is open or a check runs: one extra PID after each regular one. The screen is a Dialog over MainActivity (the
+  manifest is binary): action `ru.drivedeck.he.OBD_SCREEN` via `HebrewVoiceBridge.onIntent`; broadcast `ru.drivedeck.he.OBD`.
+* Log: `DriveDeckHe obd minute: speed obd=… gps=… obd/gps=…` once a minute; header line `obd speed: home=gps|obd factor=…`.
+* OBD facts (audit 17/11): formulas correct; home speed = GPS unless `drive_deck/speed_obd`; OBD speed = 010D × `drivedeck_obd/speed_factor`
+  (string); every PID ~1 Hz; car supports 01,03-07,0B-0F,11,13-15,1C,1F,21,23,2E,2F,30,31,33,3C,41-47,49,4A,4C,51,56 — no 0110
+  (MAP engine, no MAF). 0111 reads 11-15 % closed, so the throttle check uses 014C against a stored per-car baseline.
+  `VTI`/`STI` are harmless chip probes (the clone answers `?`). 0144 = FFFF in fuel cut is real.
+* Test: `test/ObdTest.java` (plain JVM, decodes every RX line of the logs).
+
 ## State (he-7, voice 4)
 * DriveDeck runs as `android.uid.system` (signed with the AOSP platform test key, `build/keys`).
 * Hooks in the smali tree (`build/drivedeck-apktool-src.tgz`, already applied):

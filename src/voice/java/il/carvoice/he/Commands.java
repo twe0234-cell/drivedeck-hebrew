@@ -82,6 +82,7 @@ final class Commands {
         if (action.equals("SEND_LOG")) return "שולח לוג";
         if (action.equals("CHECK_UPDATE")) return "בודק עדכונים";
         if (action.equals("FOLLOW_ARTIST")) return "מוסיף את האמן למעקב";
+        if (action.equals("OBD")) return "פותח בדיקת רכב";
         return "לייק";
     }
 
