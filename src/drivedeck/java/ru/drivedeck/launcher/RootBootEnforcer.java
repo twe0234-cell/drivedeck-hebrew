@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
@@ -229,6 +230,7 @@ public class RootBootEnforcer {
         sRootExecuted = true;
         new Thread(new Runnable() {
             public void run() {
+                disableAndroidAuto(app);
                 if (applySettings(app)) {
                     Log.i(TAG, "system settings applied via Settings API");
                     return;
@@ -236,6 +238,40 @@ public class RootBootEnforcer {
                 runSuOncePerBoot(app);
             }
         }, "dd-he-settings").start();
+    }
+
+    /**
+     * The owner does not use Android Auto: it woke on every Bluetooth connection (ACL_CONNECTED / UUID broadcasts,
+     * :shared and :car processes) next to Topway's own phone stack. Disabled for user 0 (same as
+     * `pm disable-user`), checked on every process start so an OTA re-enable is undone; reversible with
+     * `pm enable com.google.android.projection.gearhead`. DriveDeck runs as the system uid, so no root is needed;
+     * su is the fallback.
+     */
+    static final String ANDROID_AUTO = "com.google.android.projection.gearhead";
+
+    private static void disableAndroidAuto(Context app) {
+        try {
+            PackageManager pm = app.getPackageManager();
+            int st;
+            try {
+                st = pm.getApplicationEnabledSetting(ANDROID_AUTO);
+            } catch (IllegalArgumentException notInstalled) {
+                return;
+            }
+            if (st == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    || st == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) return;
+            try {
+                pm.setApplicationEnabledSetting(ANDROID_AUTO, PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER, 0);
+                Log.i(TAG, "Android Auto disabled");
+                return;
+            } catch (Throwable e) {
+                Log.w(TAG, "Android Auto: PackageManager refused, trying su", e);
+            }
+            Runtime.getRuntime().exec(new String[] { "su", "-c", "pm disable-user --user 0 " + ANDROID_AUTO }).waitFor();
+            Log.i(TAG, "Android Auto disabled via su, state " + pm.getApplicationEnabledSetting(ANDROID_AUTO));
+        } catch (Throwable e) {
+            Log.w(TAG, "Android Auto disable failed", e);
+        }
     }
 
     private static String mergedA11y(String cur) {

@@ -1,12 +1,12 @@
 {
-  "build": 8,
+  "build": 9,
   "apps": [
     {
       "package": "ru.drivedeck.launcher",
-      "build": 8,
-      "file": "DriveDeck-0.6.7-Hebrew-he8.apk",
+      "build": 9,
+      "file": "DriveDeck-0.6.7-Hebrew-he9.apk",
       "size": 1098500,
-      "sha256": "d28d0f81e45e1834e2a3567a7ee9035c00b5e922ff943387f08d0e55fefe6326"
+      "sha256": "8185f705779cf84ccc02551662e109a5a52ada49ac0576e70d493bf7a9af1a5f"
     },
     {
       "package": "il.carvoice.he",

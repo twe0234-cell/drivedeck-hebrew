@@ -37,3 +37,13 @@ diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
 ## Next
 1. Read `drivedeck-logs` once the owner has a token: check update installs, OBD auto-connect, steering-wheel key.
 2. If `pm install` as system fails on the unit, the log shows it; root is the fallback.
+
+## he-9 (2026-11-17)
+- `RootBootEnforcer.disableAndroidAuto`: disables `com.google.android.projection.gearhead` for user 0 on every process
+  start (PackageManager as system uid, `su pm disable-user` fallback). Owner asked for it; it woke on every BT connect.
+- Ignition blip, evidence from the 11-17 logs (ZemerDrive drive-1174 installed 14:14): ZemerDrive now resumes through
+  the service with no root call (ignitions 14:19 and 15:59). After the long stop (15:59) DriveDeck's MainActivity was
+  recreated ~6 s after ignition; it added a new virtual display `DRIVEDECK-TEXTURE-*` for the embedded Waze map, the
+  system logged `Screen frozen for +137ms due to new-config` (16:00:02, ~9 s after ignition) and Waze was relaunched
+  into it. Same sequence on 11-15 17:44, 11-16 16:30, 11-17 14:07. The short stop (14:19) kept the activity: no freeze.
+  Not yet confirmed with the owner that this is the pause they see.
