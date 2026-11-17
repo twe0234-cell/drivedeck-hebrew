@@ -47,3 +47,15 @@ diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
   system logged `Screen frozen for +137ms due to new-config` (16:00:02, ~9 s after ignition) and Waze was relaunched
   into it. Same sequence on 11-15 17:44, 11-16 16:30, 11-17 14:07. The short stop (14:19) kept the activity: no freeze.
   Not yet confirmed with the owner that this is the pause they see.
+
+## he-10 (2026-11-17): extended drive check
+- `HeObdUds` (pure, `test/UdsTest.java`): DIDs/formulas from the shipped profile, ISO-TP reassembly of ELM answers,
+  UDS 19 02 codes, findings (wheel-speed deviation per wheel, ABS sensor dropouts, ABS 22 1821 TPMS record, misfire
+  counters by gear, knock retard, per-cylinder correction, DQ200 rpm/speed spread per gear + clutch counters).
+- `HeObdExt`: while the drive check runs, one batch per regular answer through `T5.c2` (`HeObd.sendBatch`), which
+  appends `ATSH<T5.P>` so DriveDeck's header is restored. DriveDeck's `G(R5)` puts header+extras+command into c2 as
+  one unit and `Z()` drains c2 first, so batches never split its request; `M()` attributes answers only when the
+  command equals `a1.b`. ABS needs `ATCRA77D` (+ `ATFCSH713/ATFCSD300000/ATFCSM1` for long answers), restored with
+  `ATFCSM0`/`ATAR`, as the profile's BCM/ACM. Adapter reports "ELM327 v1.5": FC commands may be refused (logged as
+  `obd ext: adapter refused ...`); wheel speeds are single-frame and do not need FC.
+- Remote log: `obd ext:` line every 10 s while checking, `obd ext stat:` at stop, the report as before.

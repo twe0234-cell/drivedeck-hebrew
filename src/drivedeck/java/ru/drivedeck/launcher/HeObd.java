@@ -34,8 +34,8 @@ public final class HeObd {
     private static final String[] BACKGROUND_EXTRAS = { "0105", "0142" };
     private static final int BACKGROUND_EVERY = 100;    // regular answers between two background extras (~7 s)
     private static final long FRESH_MS = 20000L;
-    private static final long CHECK_MAX_MS = 30 * 60_000L;
-    private static final int MAX_SAMPLES = 4000;
+    private static final long CHECK_MAX_MS = 45 * 60_000L;
+    private static final int MAX_SAMPLES = 6000;
 
     private static volatile Context sApp;
     private static volatile c.T5 sT5;
@@ -55,6 +55,8 @@ public final class HeObd {
     private static long sLastHotAlert = 0L, sLastChargeAlert = 0L;
     private static int sLowVoltCount = 0;
     private static double sLastObdSpeed = Double.NaN;
+    private static volatile HeObdMath.Sample sLastSample;
+    private static long sLastExtLog = 0L;
 
     private HeObd() { }
 
@@ -78,6 +80,10 @@ public final class HeObd {
         boolean ours;
         synchronized (sPending) { ours = sPending.remove(cmd); }
         long now = System.currentTimeMillis();
+        if (ours && (cmd.startsWith("AT") || cmd.startsWith("22") || cmd.startsWith("19"))) {
+            HeObdExt.onAnswer(cmd, raw);
+            return;
+        }
         if (cmd.equals("03") || cmd.equals("07")) {
             List<String> c = HeObdMath.dtcs(raw, cmd.charAt(1));
             synchronized (sCodes) {
@@ -120,6 +126,7 @@ public final class HeObd {
             pid = BACKGROUND_EXTRAS[sBgIndex++ % BACKGROUND_EXTRAS.length];
         }
         if (pid != null) send(pid);
+        if (sCheckStart > 0) HeObdExt.next();
     }
 
     /** Queues a command on DriveDeck's connection (sent before its next regular poll). */
@@ -133,12 +140,44 @@ public final class HeObd {
         synchronized (sPending) {
             if (sPending.contains(command)) return true;
             sPending.add(command);
-            if (sPending.size() > 20) sPending.remove(0);
+            while (sPending.size() > 100) sPending.remove(0);
         }
         t.c.post(new Runnable() {
             @SuppressWarnings("unchecked")
             public void run() {
                 try { t.c2.add(command); } catch (Throwable e) { Log.w(TAG, "obd queue", e); }
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Queues a whole batch (HeObdExt) in one go, then "ATSH" + DriveDeck's current header, so its next request goes
+     * where it expects. DriveDeck's own requests are always complete in its queue (header, extras, command), and it
+     * drains the queue before the next request, so a batch never lands between its header and its command.
+     */
+    static boolean sendBatch(final List<String> commands) {
+        Context app = sApp;
+        if (app == null) return false;
+        c.T5 cached = sT5;
+        if (cached == null) cached = sT5 = c.T5.V(app);
+        final c.T5 t = cached;
+        if (t == null || t.c == null || t.c2 == null || !RootBootEnforcer.isConnected(t)) return false;
+        t.c.post(new Runnable() {
+            @SuppressWarnings("unchecked")
+            public void run() {
+                try {
+                    String header = t.P;
+                    List<String> all = new ArrayList<String>(commands);
+                    all.add("ATSH" + (header == null || header.trim().isEmpty() ? "7DF" : header.trim()));
+                    synchronized (sPending) {
+                        for (String x : all) sPending.add(x);
+                        while (sPending.size() > 100) sPending.remove(0);
+                    }
+                    for (String x : all) t.c2.add(x);
+                } catch (Throwable e) {
+                    Log.w(TAG, "obd batch", e);
+                }
             }
         });
         return true;
@@ -197,6 +236,12 @@ public final class HeObd {
         sLastObdSpeed = s.speed;
 
         if (sCheckStart > 0) {
+            HeObdExt.fill(s, now);
+            sLastSample = s;
+            if (now - sLastExtLog >= 10_000L) {
+                sLastExtLog = now;
+                Log.i(TAG, "obd ext: " + HeObdUds.line(s));
+            }
             synchronized (sSamples) {
                 if (sSamples.size() < MAX_SAMPLES) sSamples.add(s);
             }
@@ -285,6 +330,8 @@ public final class HeObd {
     static void startCheck() {
         synchronized (sSamples) { sSamples.clear(); }
         sMil = -1;
+        sLastSample = null;
+        HeObdExt.start();
         sCheckStart = System.currentTimeMillis();
         readCodes();
         Log.i(TAG, "obd check started");
@@ -294,6 +341,7 @@ public final class HeObd {
     static String stopCheck() {
         if (sCheckStart <= 0) return lastReport();
         sCheckStart = -1L;
+        HeObdExt.stop();
         String report = report();
         Context app = sApp;
         if (app != null) app.getSharedPreferences("drivedeck_he", 0).edit().putString("obd_report", report).apply();
@@ -335,6 +383,7 @@ public final class HeObd {
             try { base = Double.parseDouble(he.getString("obd_idle_throttle", "")); } catch (Throwable ignored) { }
         }
         List<HeObdMath.Finding> f = HeObdMath.evaluate(copy, sMil, sCodesRead ? codes() : null, base);
+        f.addAll(HeObdUds.evaluate(copy, HeObdExt.stat(), HeObdExt.codes(), HeObdExt.failed()));
         double idle = HeObdMath.idleThrottle(copy);
         if (he != null && !HeObdMath.ok(base) && HeObdMath.ok(idle)) {
             he.edit().putString("obd_idle_throttle", String.format(Locale.US, "%.2f", idle)).apply();
@@ -408,6 +457,7 @@ public final class HeObd {
         l.add(new String[] { "תזמון הצתה", n1(value("010E", now)) + "°" });
         l.add(new String[] { "חיישן חמצן לפני / אחרי ממיר", n2(value("0114", now)) + " / " + n2(value("0115", now)) + "V" });
         l.add(new String[] { "דלק במיכל", n0(value("012F", now)) + "%" });
+        if (sCheckStart > 0) l.addAll(HeObdExt.live(sLastSample));
         return l;
     }
 

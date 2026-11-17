@@ -143,6 +143,21 @@ public final class HeObdMath {
         /** Commanded throttle actuator (PID 014C), not the absolute sensor 0111 (that one reads 11-15% shut). */
         public double load = Double.NaN, throttle = Double.NaN, voltage = Double.NaN;
         public double o2up = Double.NaN, o2down = Double.NaN;
+        // extended check (HeObdUds): other control units over the same adapter
+        /** ABS wheel speeds FL, FR, RL, RR (km/h); steering angle (deg, unsigned raw as the profile reads it). */
+        public double[] wheel = nan(4);
+        public double steer = Double.NaN;
+        /** DSG gear (1-7, 0 = N, -1 = R), clutch temperatures, gearbox oil pressure (bar). */
+        public double gear = Double.NaN, clutch1T = Double.NaN, clutch2T = Double.NaN, dsgPressure = Double.NaN;
+        /** Engine: misfire counters, knock retard (deg), fuel correction factor per cylinder 1-4; oil temp, torque (Nm). */
+        public double[] misfire = nan(4), knock = nan(4), corr = nan(4);
+        public double oilT = Double.NaN, torque = Double.NaN;
+
+        static double[] nan(int n) {
+            double[] d = new double[n];
+            java.util.Arrays.fill(d, Double.NaN);
+            return d;
+        }
     }
 
     public static final int OK = 0, INFO = 1, WARN = 2, BAD = 3;
