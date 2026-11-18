@@ -50,7 +50,7 @@ import java.util.TimeZone;
  */
 public final class HeRemote {
     /** This build's number; a release he-N with N greater than this one updates DriveDeck. */
-    public static final int BUILD = 10;
+    public static final int BUILD = 11;
 
     static final String UPDATE_REPO = "twe0234-cell/drivedeck-hebrew";
     static final String LOG_REPO = "twe0234-cell/zemer-drive";
@@ -419,12 +419,17 @@ public final class HeRemote {
             } else {
                 logcat = run(new String[] { "logcat", "-d", "-v", "time", "-t", "3000", "*:I" }, 20_000L);
             }
-            if ((logcat == null || logcat.trim().isEmpty()) && crash.isEmpty()) return "אין חדש";
         }
+        String obdLog = HeLog.take(app);
+        if (!full && (logcat == null || logcat.trim().isEmpty()) && crash.isEmpty() && obdLog.isEmpty()) return "אין חדש";
         StringBuilder body = new StringBuilder(header(app, now, full));
         if (!crash.isEmpty()) body.append("\n== DriveDeck crash ==\n").append(crash);
-        body.append("\n== logcat ==\n").append(logcat == null ? "(logcat unavailable)" : logcat);
-        String text = body.length() > MAX_LOG_CHARS ? "…(older lines dropped)\n" + body.substring(body.length() - MAX_LOG_CHARS) : body.toString();
+        if (!obdLog.isEmpty()) body.append("\n== DriveDeck OBD log ==\n").append(obdLog);
+        String lc = logcat == null ? "(logcat unavailable)" : logcat;
+        int room = Math.max(50_000, MAX_LOG_CHARS - body.length());
+        if (lc.length() > room) lc = "…(older lines dropped)\n" + lc.substring(lc.length() - room);
+        body.append("\n== logcat ==\n").append(lc);
+        String text = body.toString();
         String path = logPath(now, Build.MODEL, full);
         String r = putFile(token, path, text);
         if ("branch".equals(r)) {
@@ -434,6 +439,7 @@ public final class HeRemote {
         if (!"ok".equals(r)) return "שליחת לוג נכשלה: " + r;
         p.edit().putLong("log_since", now).apply();
         if (!crash.isEmpty()) crashFile(app).delete();
+        HeLog.sent(app);
         return "לוג נשלח: " + path;
     }
 
@@ -462,6 +468,14 @@ public final class HeRemote {
         } catch (Throwable ignored) { }
         SharedPreferences p = prefs(app);
         b.append("last update check: ").append(p.getString("update_status", "-")).append('\n');
+        try {
+            b.append("drive check: ").append(HeObd.checking() ? "running since " + new Date(HeObd.checkStartedAt()) + ", samples=" + HeObd.sampleCount() : "idle").append('\n');
+            String rep = HeObd.lastReport();
+            if (rep != null && !rep.isEmpty()) {
+                long t = HeObd.lastReportTime();
+                b.append("== last drive check report (").append(t > 0 ? new Date(t).toString() : "time unknown").append(") ==\n").append(rep).append('\n');
+            }
+        } catch (Throwable ignored) { }
         return b.toString();
     }
 

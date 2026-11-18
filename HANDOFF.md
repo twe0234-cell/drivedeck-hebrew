@@ -59,3 +59,11 @@ diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
   `ATFCSM0`/`ATAR`, as the profile's BCM/ACM. Adapter reports "ELM327 v1.5": FC commands may be refused (logged as
   `obd ext: adapter refused ...`); wheel speeds are single-frame and do not need FC.
 - Remote log: `obd ext:` line every 10 s while checking, `obd ext stat:` at stop, the report as before.
+
+## he-11: drive-check data reaches the remote log
+- he-10 logs from 11-18 had no `obd ext` lines: DriveDeck runs as uid 1000, logcat's chatty filter expires most of its
+  lines ("uid=1000(system) ru.drivedeck.launcher expire N lines"), and the ring buffer holds only minutes anyway.
+- `HeLog`: HeObd/HeObdExt/HeObdScreen lines also go to `files/he-obd.log` (cap 1.5 MB). `HeRemote.uploadLog` takes it
+  (rename to `.sending`, deleted only after a good upload) as section `== DriveDeck OBD log ==`.
+- Header now has `drive check:` state and `== last drive check report (...) ==` (prefs `obd_report`, `obd_report_time`).
+- `stopCheck` uploads at once; during a check an `obd ext:` sample line is logged every 2 s.

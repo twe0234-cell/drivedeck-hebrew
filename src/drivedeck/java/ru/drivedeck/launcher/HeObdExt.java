@@ -51,7 +51,7 @@ final class HeObdExt {
 
     static void stop() {
         sOn = false;
-        Log.i(HeObd.TAG, "obd ext stat: " + stat() + " codes=" + codes() + " failed=" + failed() + " at?=" + sBadAt);
+        HeLog.i("obd ext stat: " + stat() + " codes=" + codes() + " failed=" + failed() + " at?=" + sBadAt);
     }
 
     /** After each regular answer: the next batch, when the previous one is through. */
@@ -73,7 +73,7 @@ final class HeObdExt {
         if (sInFlight > 0) sInFlight--;
         String text = raw == null ? "" : raw.toUpperCase(Locale.ROOT);
         if (cmd.startsWith("AT")) {
-            if (text.contains("?")) synchronized (sLatest) { if (sBadAt.add(cmd)) Log.w(HeObd.TAG, "obd ext: adapter refused " + cmd); }
+            if (text.contains("?")) synchronized (sLatest) { if (sBadAt.add(cmd)) HeLog.w("obd ext: adapter refused " + cmd); }
             return;
         }
         String id = HeObdUds.replyId(raw);
@@ -89,7 +89,7 @@ final class HeObdExt {
             if (p.length >= 2 && p[0] == 0x59) {
                 synchronized (sLatest) { sCodes.put(unit, c); }
                 count(unit, true);
-                Log.i(HeObd.TAG, "obd ext codes " + unit + ": " + c);
+                HeLog.i("obd ext codes " + unit + ": " + c);
             }
             return;
         }

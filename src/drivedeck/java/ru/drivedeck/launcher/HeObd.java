@@ -38,6 +38,8 @@ public final class HeObd {
     private static final int MAX_SAMPLES = 6000;
 
     private static volatile Context sApp;
+
+    static Context app() { return sApp; }
     private static volatile c.T5 sT5;
     private static final Map<String, double[]> sValues = new HashMap<String, double[]>(); // pid -> {value, time}
     private static volatile int sMil = -1;
@@ -72,7 +74,7 @@ public final class HeObd {
         try {
             handle(cmd == null ? "" : cmd.trim().toUpperCase(Locale.ROOT).replace(" ", ""), raw);
         } catch (Throwable t) {
-            Log.w(TAG, "obd hook", t);
+            HeLog.w("obd hook", t);
         }
     }
 
@@ -91,7 +93,7 @@ public final class HeObd {
                 for (String s : c) if (!sCodes.contains(s)) sCodes.add(s);
             }
             sCodesRead = true;
-            Log.i(TAG, "obd codes (" + cmd + "): " + c);
+            HeLog.i("obd codes (" + cmd + "): " + c);
             return;
         }
         if (cmd.length() != 4 || !cmd.startsWith("01")) return;
@@ -145,7 +147,7 @@ public final class HeObd {
         t.c.post(new Runnable() {
             @SuppressWarnings("unchecked")
             public void run() {
-                try { t.c2.add(command); } catch (Throwable e) { Log.w(TAG, "obd queue", e); }
+                try { t.c2.add(command); } catch (Throwable e) { HeLog.w("obd queue", e); }
             }
         });
         return true;
@@ -176,7 +178,7 @@ public final class HeObd {
                     }
                     for (String x : all) t.c2.add(x);
                 } catch (Throwable e) {
-                    Log.w(TAG, "obd batch", e);
+                    HeLog.w("obd batch", e);
                 }
             }
         });
@@ -238,9 +240,9 @@ public final class HeObd {
         if (sCheckStart > 0) {
             HeObdExt.fill(s, now);
             sLastSample = s;
-            if (now - sLastExtLog >= 10_000L) {
+            if (now - sLastExtLog >= 2_000L) {
                 sLastExtLog = now;
-                Log.i(TAG, "obd ext: " + HeObdUds.line(s));
+                HeLog.i("obd ext: " + HeObdUds.line(s));
             }
             synchronized (sSamples) {
                 if (sSamples.size() < MAX_SAMPLES) sSamples.add(s);
@@ -249,7 +251,7 @@ public final class HeObd {
         }
         if (now - sLastSummary >= 60_000L) {
             sLastSummary = now;
-            Log.i(TAG, "obd minute: " + summary(s));
+            HeLog.i("obd minute: " + summary(s));
         }
     }
 
@@ -295,14 +297,14 @@ public final class HeObd {
         if (HeObdMath.ok(coolant) && coolant >= 112 && now - sLastHotAlert > 10 * 60_000L) {
             sLastHotAlert = now;
             toast("אזהרה: המנוע חם מדי (" + Math.round(coolant) + "°). לעצור בצד ולבדוק נוזל קירור.");
-            Log.w(TAG, "obd alert: coolant " + coolant);
+            HeLog.w("obd alert: coolant " + coolant);
         }
         if (HeObdMath.ok(volt) && HeObdMath.ok(rpm) && rpm > 600) {
             sLowVoltCount = volt < 12.4 ? sLowVoltCount + 1 : 0;
             if (sLowVoltCount >= 3 && now - sLastChargeAlert > 30 * 60_000L) {
                 sLastChargeAlert = now;
                 toast("אזהרה: המצבר לא נטען (" + String.format(Locale.US, "%.1f", volt) + "V במנוע פועל).");
-                Log.w(TAG, "obd alert: voltage " + volt);
+                HeLog.w("obd alert: voltage " + volt);
             }
         }
     }
@@ -334,7 +336,7 @@ public final class HeObd {
         HeObdExt.start();
         sCheckStart = System.currentTimeMillis();
         readCodes();
-        Log.i(TAG, "obd check started");
+        HeLog.i("obd check started");
     }
 
     /** Ends the drive check, saves and logs the report; returns it. */
@@ -344,9 +346,19 @@ public final class HeObd {
         HeObdExt.stop();
         String report = report();
         Context app = sApp;
-        if (app != null) app.getSharedPreferences("drivedeck_he", 0).edit().putString("obd_report", report).apply();
-        Log.i(TAG, "obd check report:\n" + report);
+        if (app != null) app.getSharedPreferences("drivedeck_he", 0).edit().putString("obd_report", report)
+                .putLong("obd_report_time", System.currentTimeMillis()).apply();
+        HeLog.i("obd check report:\n" + report);
+        if (app != null) {
+            final Context a = app;
+            new Thread(new Runnable() { public void run() { HeRemote.uploadLog(a, false); } }, "he-obd-report").start();
+        }
         return report;
+    }
+
+    static long lastReportTime() {
+        Context app = sApp;
+        return app == null ? 0L : app.getSharedPreferences("drivedeck_he", 0).getLong("obd_report_time", 0L);
     }
 
     static String lastReport() {
@@ -438,7 +450,7 @@ public final class HeObd {
         if (app == null || !HeObdMath.ok(f)) return;
         SharedPreferences.Editor e = app.getSharedPreferences("drivedeck_obd", 0).edit();
         e.putString("speed_factor", String.format(Locale.US, "%.3f", f)).apply();
-        Log.i(TAG, "obd speed factor set to " + f);
+        HeLog.i("obd speed factor set to " + f);
     }
 
     /** Live values for the screen: label -> text. */

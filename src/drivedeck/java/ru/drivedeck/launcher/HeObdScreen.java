@@ -46,7 +46,7 @@ public final class HeObdScreen {
             i.addFlags(0x10000000 | 0x20000000); // NEW_TASK | SINGLE_TOP
             c.startActivity(i);
         } catch (Throwable t) {
-            Log.w(HeObd.TAG, "obd screen open", t);
+            HeLog.w("obd screen open", t);
         }
     }
 
@@ -167,9 +167,9 @@ public final class HeObdScreen {
             d.show();
             if (d.getWindow() != null) d.getWindow().setLayout(-1, -1);
             tick[0].run();
-            Log.i(HeObd.TAG, "obd screen shown");
+            HeLog.i("obd screen shown");
         } catch (Throwable t) {
-            Log.w(HeObd.TAG, "obd screen", t);
+            HeLog.w("obd screen", t);
         }
     }
 
