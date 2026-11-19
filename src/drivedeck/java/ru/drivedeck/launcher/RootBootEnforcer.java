@@ -33,7 +33,7 @@ import java.util.Set;
  */
 public class RootBootEnforcer {
     private static final String TAG = "RootBootEnforcer";
-    private static final String HE_PREFS = "drivedeck_he";
+    static final String HE_PREFS = "drivedeck_he";
     private static final String OBD_PREFS = "drivedeck_obd";
     static final String PROFILE_ID = "01e985f62b07bf78fbba66f5";
     static final String PROFILE_FILE = "profiles/8816d93260d0d39cc8048a0b7d408eb3f01b5a22b865e35c1d249341b6cfb539.json";
@@ -262,7 +262,7 @@ public class RootBootEnforcer {
 
     private static void replaceEqShortcut(Context app) {
         try {
-            if (app.getPackageManager().getPackageInfo("il.carvoice.he", 0).versionCode < 6) return;
+            if (app.getPackageManager().getPackageInfo(HeRemote.VOICE_PKG, 0).versionCode < 6) return;
         } catch (Throwable notInstalled) {
             return;
         }

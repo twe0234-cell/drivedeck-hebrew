@@ -6,9 +6,9 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.widget.Toast;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,7 +29,7 @@ import java.util.Map;
  *   and the check-engine status, one extra PID after each regular one, recorded into samples for [HeObdMath].
  */
 public final class HeObd {
-    static final String TAG = "DriveDeckHe";
+    static final String TAG = HeLog.TAG;
     private static final String[] CHECK_EXTRAS = { "0105", "0106", "0107", "0142", "014C", "010E", "0115", "0114", "0101" };
     private static final String[] BACKGROUND_EXTRAS = { "0105", "0142", "0106", "0107" };
     private static final int BACKGROUND_EVERY = 100;    // regular answers between two background extras (~7 s)
@@ -39,6 +39,7 @@ public final class HeObd {
     private static final int MAX_SAMPLES = 6000;
 
     private static volatile Context sApp;
+    private static boolean sResumeStarted = false;
 
     static Context app() { return sApp; }
     private static volatile c.T5 sT5;
@@ -69,16 +70,32 @@ public final class HeObd {
     /** From process start (RootBootEnforcer.initAndEnforce). */
     public static void init(Context app) {
         if (app != null) sApp = app.getApplicationContext() != null ? app.getApplicationContext() : app;
-        try { resumeCheck(); } catch (Throwable t) { HeLog.w("obd check resume", t); }
+        HeLog.init(sApp);
+        synchronized (HeObd.class) {
+            if (sResumeStarted || sApp == null) return;
+            sResumeStarted = true;
+        }
+        // off the caller's thread (a broadcast at ignition): up to 6000 samples to parse
+        new Thread(new Runnable() {
+            public void run() {
+                try { resumeCheck(); } catch (Throwable t) { HeLog.w("obd check resume", t); }
+            }
+        }, "he-obd-resume").start();
     }
 
     // ================================================================== drive check across restarts
     // DriveDeck's process is restarted at ignition (Topway quick boot), so a running check is kept in prefs
     // (start time) and a file (one line per sample), and picked up again by the next process.
 
-    private static java.io.File checkFile(Context app) { return new java.io.File(app.getFilesDir(), "he-check.csv"); }
+    private static File checkFile(Context app) { return new File(app.getFilesDir(), "he-check.csv"); }
 
-    private static SharedPreferences hePrefs(Context app) { return app.getSharedPreferences("drivedeck_he", 0); }
+    private static SharedPreferences hePrefs(Context app) { return app.getSharedPreferences(RootBootEnforcer.HE_PREFS, 0); }
+
+    private static void resetActive() { sActiveMs = 0L; sLastSampleT = 0L; }
+
+    private static void resetCsv() {
+        synchronized (sCsv) { sCsv.setLength(0); sCsvLines = 0; }
+    }
 
     private static void resumeCheck() {
         Context app = sApp;
@@ -86,24 +103,12 @@ public final class HeObd {
         long start = hePrefs(app).getLong("check_start", 0L);
         if (start <= 0) return;
         List<HeObdMath.Sample> loaded = new ArrayList<HeObdMath.Sample>();
-        java.io.File f = checkFile(app);
-        if (f.exists()) {
-            java.io.BufferedReader r = null;
-            try {
-                r = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(f), "UTF-8"));
-                String line;
-                while ((line = r.readLine()) != null && loaded.size() < MAX_SAMPLES) {
-                    HeObdMath.Sample x = HeObdMath.Sample.fromCsv(line);
-                    if (x != null) loaded.add(x);
-                }
-            } catch (Throwable e) {
-                HeLog.w("obd check file", e);
-            } finally {
-                try { if (r != null) r.close(); } catch (Throwable ignored) { }
-            }
+        for (String line : HeRemote.readFile(checkFile(app)).split("\n")) {
+            HeObdMath.Sample x = HeObdMath.Sample.fromCsv(line);
+            if (x != null && loaded.size() < MAX_SAMPLES) loaded.add(x);
         }
         synchronized (sSamples) { sSamples.clear(); sSamples.addAll(loaded); }
-        sActiveMs = 0L; sLastSampleT = 0L;
+        resetActive();
         for (HeObdMath.Sample x : loaded) countActive(x.t);
         sCheckStart = start;
         HeObdExt.start();
@@ -123,17 +128,8 @@ public final class HeObd {
         synchronized (sCsv) {
             if (s != null) { sCsv.append(s.csv()).append('\n'); sCsvLines++; }
             if (sCsvLines == 0 || (!force && sCsvLines < 5)) return;
-            java.io.FileOutputStream out = null;
-            try {
-                out = new java.io.FileOutputStream(checkFile(app), true);
-                out.write(sCsv.toString().getBytes("UTF-8"));
-            } catch (Throwable e) {
-                HeLog.w("obd check save", e);
-            } finally {
-                try { if (out != null) out.close(); } catch (Throwable ignored) { }
-            }
-            sCsv.setLength(0);
-            sCsvLines = 0;
+            if (!HeLog.writeText(checkFile(app), sCsv.toString(), true)) HeLog.w("obd check save failed");
+            resetCsv();
         }
     }
 
@@ -407,8 +403,8 @@ public final class HeObd {
         sMil = -1;
         sLastSample = null;
         HeObdExt.start();
-        sActiveMs = 0L; sLastSampleT = 0L;
-        synchronized (sCsv) { sCsv.setLength(0); sCsvLines = 0; }
+        resetActive();
+        resetCsv();
         sCheckStart = System.currentTimeMillis();
         Context app = sApp;
         if (app != null) {
@@ -423,32 +419,28 @@ public final class HeObd {
     static String stopCheck() {
         if (sCheckStart <= 0) return lastReport();
         sCheckStart = -1L;
-        synchronized (sCsv) { sCsv.setLength(0); sCsvLines = 0; }
-        if (sApp != null) {
-            hePrefs(sApp).edit().remove("check_start").apply();
-            checkFile(sApp).delete();
-        }
+        resetCsv();
         HeObdExt.stop();
         String report = report();
-        Context app = sApp;
-        if (app != null) app.getSharedPreferences("drivedeck_he", 0).edit().putString("obd_report", report)
-                .putLong("obd_report_time", System.currentTimeMillis()).apply();
         HeLog.i("obd check report:\n" + report);
+        final Context app = sApp;
         if (app != null) {
-            final Context a = app;
-            new Thread(new Runnable() { public void run() { HeRemote.uploadLog(a, false); } }, "he-obd-report").start();
+            hePrefs(app).edit().remove("check_start").putString("obd_report", report)
+                    .putLong("obd_report_time", System.currentTimeMillis()).apply();
+            checkFile(app).delete();
+            new Thread(new Runnable() { public void run() { HeRemote.uploadLog(app, false); } }, "he-obd-report").start();
         }
         return report;
     }
 
     static long lastReportTime() {
         Context app = sApp;
-        return app == null ? 0L : app.getSharedPreferences("drivedeck_he", 0).getLong("obd_report_time", 0L);
+        return app == null ? 0L : hePrefs(app).getLong("obd_report_time", 0L);
     }
 
     static String lastReport() {
         Context app = sApp;
-        return app == null ? "" : app.getSharedPreferences("drivedeck_he", 0).getString("obd_report", "");
+        return app == null ? "" : hePrefs(app).getString("obd_report", "");
     }
 
     static int sampleCount() {
@@ -474,7 +466,7 @@ public final class HeObd {
         List<HeObdMath.Sample> copy;
         synchronized (sSamples) { copy = new ArrayList<HeObdMath.Sample>(sSamples); }
         Context app = sApp;
-        SharedPreferences he = app == null ? null : app.getSharedPreferences("drivedeck_he", 0);
+        SharedPreferences he = app == null ? null : hePrefs(app);
         double base = Double.NaN;
         if (he != null && he.contains("obd_idle_throttle")) {
             try { base = Double.parseDouble(he.getString("obd_idle_throttle", "")); } catch (Throwable ignored) { }

@@ -14,7 +14,7 @@ import java.util.ArrayList;
  */
 public class VoiceActivity extends Activity {
     private static final int REQ = 7301;
-    static final int VERSION = 6;
+    static final int VERSION = 7;
 
     protected void onCreate(Bundle b) {
         super.onCreate(b);

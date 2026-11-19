@@ -1,6 +1,5 @@
 package ru.drivedeck.launcher;
 
-import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,12 +29,12 @@ final class HeObdExt {
     private static final Map<String, double[]> sLatest = new HashMap<String, double[]>(); // key -> {value, time}
     private static final Map<String, Double> sStat = new LinkedHashMap<String, Double>();
     private static final Map<String, List<String>> sCodes = new LinkedHashMap<String, List<String>>();
-    private static final Map<String, int[]> sTries = new HashMap<String, int[]>(); // unit -> {asked, answered}
+    /** Per unit: {asked, answered, misses in a row, last batch time}. A unit with MISSES_TO_PAUSE misses in a row is
+     *  asked again only every RETRY_MS, so DriveDeck's own polling (and the samples) keep their pace. */
+    private static final Map<String, long[]> sTries = new HashMap<String, long[]>();
     private static final Set<String> sBadAt = new LinkedHashSet<String>();
     private static int sScaleA = 0, sScaleB = 0;
-    /** Per unit: requests in a row without an answer, last batch time, whether it ever answered. A unit that does not
-     *  answer is asked again only every RETRY_MS, so DriveDeck's own polling (and the samples) keep their pace. */
-    private static final Map<String, long[]> sBackoff = new HashMap<String, long[]>(); // unit -> {misses, lastTry, ok}
+    private static volatile String sBatchUnit; // the unit of the batch in flight
     private static final int MISSES_TO_PAUSE = 6;
     private static final long RETRY_MS = 3 * 60_000L;
     private static int sTraced = 0;
@@ -46,7 +45,7 @@ final class HeObdExt {
 
     static void start() {
         synchronized (sLatest) {
-            sLatest.clear(); sStat.clear(); sCodes.clear(); sTries.clear(); sBadAt.clear(); sBackoff.clear();
+            sLatest.clear(); sStat.clear(); sCodes.clear(); sTries.clear(); sBadAt.clear();
             sStart.clear(); sStart.addAll(HeObdUds.startBatches());
         }
         sScaleA = sScaleB = 0;
@@ -58,7 +57,7 @@ final class HeObdExt {
 
     static void stop() {
         sOn = false;
-        HeLog.i("obd ext stat: " + stat() + " codes=" + codes() + " failed=" + failed() + " at?=" + sBadAt + " backoff=" + backoffText());
+        HeLog.i("obd ext stat: " + stat() + " codes=" + codes() + " failed=" + failed() + " at?=" + sBadAt + " tries=" + triesText());
     }
 
     /** After each regular answer: the next batch, when the previous one is through. */
@@ -67,34 +66,37 @@ final class HeObdExt {
         long now = System.currentTimeMillis();
         if (sInFlight > 0 && now - sSentAt < STUCK_MS) return;
         List<String> b = null;
+        String unit = null;
         synchronized (sLatest) {
             if (!sStart.isEmpty()) {
                 b = sStart.remove(0);
+                unit = HeObdUds.unitOfBatch(b);
             } else {
                 for (int i = 0; i < sLive.size() && b == null; i++) {
                     List<String> c = sLive.get(sLiveIndex++ % sLive.size());
-                    if (!paused(HeObdUds.unitOfBatch(c), now)) b = c;
+                    String u = HeObdUds.unitOfBatch(c);
+                    if (!paused(u, now)) { b = c; unit = u; }
                 }
             }
-            String u = b == null ? null : HeObdUds.unitOfBatch(b);
-            if (u != null) backoff(u)[1] = now;
+            if (unit != null) tries(unit)[3] = now;
         }
         if (b == null) return; // every unit is paused: DriveDeck polls alone until a retry is due
+        sBatchUnit = unit;
         sInFlight = b.size() + 1; // + the header restore
         sSentAt = now;
         if (!HeObd.sendBatch(b)) sInFlight = 0;
     }
 
-    private static long[] backoff(String unit) {
-        long[] b = sBackoff.get(unit);
-        if (b == null) sBackoff.put(unit, b = new long[3]);
-        return b;
+    private static long[] tries(String unit) {
+        long[] t = sTries.get(unit);
+        if (t == null) sTries.put(unit, t = new long[4]);
+        return t;
     }
 
     private static boolean paused(String unit, long now) {
         if (unit == null) return false;
-        long[] b = backoff(unit);
-        return b[0] >= MISSES_TO_PAUSE && now - b[1] < RETRY_MS;
+        long[] t = tries(unit);
+        return t[2] >= MISSES_TO_PAUSE && now - t[3] < RETRY_MS;
     }
 
     /** Every answer to one of our commands while checking, raw, for the first 80 of a check (the remote log). */
@@ -114,11 +116,11 @@ final class HeObdExt {
         }
         String id = HeObdUds.replyId(raw);
         String unit = HeObdUds.unitOfReply(id);
-        String asked = unitOfCommand(cmd);
-        count(asked, false);
+        String asked = sBatchUnit;
         if (asked != null) synchronized (sLatest) {
-            long[] b = backoff(asked);
-            if (unit != null) { b[0] = 0; b[2] = 1; } else b[0]++;
+            long[] t = tries(asked);
+            t[0]++;
+            t[2] = unit == null ? t[2] + 1 : 0;
         }
         if (unit == null) return;
         int[] p = HeObdUds.payload(raw, id);
@@ -128,14 +130,14 @@ final class HeObdExt {
             List<String> c = HeObdUds.dtcs(p);
             if (p.length >= 2 && p[0] == 0x59) {
                 synchronized (sLatest) { sCodes.put(unit, c); }
-                count(unit, true);
+                answered(unit);
                 HeLog.i("obd ext codes " + unit + ": " + c);
             }
             return;
         }
         Map<String, Double> v = HeObdUds.values(unit, cmd, p);
         if (v.isEmpty()) return;
-        count(unit, true);
+        answered(unit);
         synchronized (sLatest) {
             for (Map.Entry<String, Double> e : v.entrySet()) {
                 String k = e.getKey();
@@ -145,20 +147,8 @@ final class HeObdExt {
         }
     }
 
-    /** Which unit a command went to: the batches always start with the unit's ATSH, so the reply id decides; this
-     *  is only for counting units that never answer. */
-    private static String unitOfCommand(String cmd) {
-        for (HeObdUds.Did d : HeObdUds.DIDS) if (d.cmd.equals(cmd)) return d.unit;
-        return null;
-    }
-
-    private static void count(String unit, boolean answered) {
-        if (unit == null) return;
-        synchronized (sLatest) {
-            int[] t = sTries.get(unit);
-            if (t == null) sTries.put(unit, t = new int[2]);
-            if (answered) t[1]++; else t[0]++;
-        }
+    private static void answered(String unit) {
+        synchronized (sLatest) { tries(unit)[1]++; }
     }
 
     private static boolean isStat(String k) {
@@ -203,11 +193,12 @@ final class HeObdExt {
         }
     }
 
-    private static String backoffText() {
+    private static String triesText() {
         StringBuilder t = new StringBuilder();
         synchronized (sLatest) {
-            for (Map.Entry<String, long[]> e : sBackoff.entrySet()) {
-                t.append(e.getKey()).append(":misses=").append(e.getValue()[0]).append(e.getValue()[2] == 1 ? ",answered " : ",never ");
+            for (Map.Entry<String, long[]> e : sTries.entrySet()) {
+                long[] v = e.getValue();
+                t.append(e.getKey()).append(":asked=").append(v[0]).append(",answered=").append(v[1]).append(",missesInRow=").append(v[2]).append(' ');
             }
         }
         return t.toString().trim();
@@ -225,7 +216,7 @@ final class HeObdExt {
     static List<String> failed() {
         List<String> l = new ArrayList<String>();
         synchronized (sLatest) {
-            for (Map.Entry<String, int[]> e : sTries.entrySet()) {
+            for (Map.Entry<String, long[]> e : sTries.entrySet()) {
                 if (e.getValue()[0] >= 3 && e.getValue()[1] == 0) l.add(HeObdUds.unitName(e.getKey()));
             }
         }

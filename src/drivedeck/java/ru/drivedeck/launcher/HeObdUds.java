@@ -136,12 +136,8 @@ public final class HeObdUds {
 
     /** Which unit a batch talks to (its first header), or null. */
     static String unitOfBatch(List<String> b) {
-        for (String c : b) {
-            if (c.equals("ATSH7E0")) return ECM;
-            if (c.equals("ATSH7E1")) return TCM;
-            if (c.equals("ATSH713")) return ABS;
-        }
-        return null;
+        String h = b.isEmpty() || !b.get(0).startsWith("ATSH") ? null : b.get(0).substring(4);
+        return ECM.equals(h) || TCM.equals(h) || ABS.equals(h) ? h : null;
     }
 
     /** The live rotation: wheel speeds every other batch, engine and gearbox in between. */

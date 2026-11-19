@@ -62,7 +62,7 @@ final class Commands {
         if (k.equals(Parser.ZEMER)) return openZemer();
         if (k.equals(Parser.WAZE)) return openPkg("com.waze") ? "פותח Waze" : openByName("waze");
         if (k.equals(Parser.MAPS)) return openPkg("com.google.android.apps.maps") ? "פותח מפות" : openPkg("com.waze") ? "פותח Waze" : "לא נמצאה אפליקציית מפות";
-        if (k.equals(Parser.EQ)) return openPkg("com.tw.eq") ? "פותח אקולייזר" : openByName("eq");
+        if (k.equals(Parser.EQ)) return EqActivity.open(a) ? "פותח אקולייזר" : openByName("eq");
         if (k.equals(Parser.HOME)) return home();
         if (k.equals(Parser.SETTINGS)) return start(new Intent("android.settings.SETTINGS")) ? "פותח הגדרות" : "ההגדרות לא נפתחו";
         if (k.equals(Parser.HELP)) return start(new Intent(a, SettingsActivity.class)) ? "רשימת הפקודות" : "שגיאה";

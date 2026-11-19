@@ -50,7 +50,7 @@ import java.util.TimeZone;
  */
 public final class HeRemote {
     /** This build's number; a release he-N with N greater than this one updates DriveDeck. */
-    public static final int BUILD = 13;
+    public static final int BUILD = 14;
 
     static final String UPDATE_REPO = "twe0234-cell/drivedeck-hebrew";
     static final String LOG_REPO = "twe0234-cell/zemer-drive";
@@ -420,7 +420,7 @@ public final class HeRemote {
                 logcat = run(new String[] { "logcat", "-d", "-v", "time", "-t", "3000", "*:I" }, 20_000L);
             }
         }
-        String obdLog = HeLog.take(app);
+        String obdLog = HeLog.take();
         if (!full && (logcat == null || logcat.trim().isEmpty()) && crash.isEmpty() && obdLog.isEmpty()) return "אין חדש";
         StringBuilder body = new StringBuilder(header(app, now, full));
         if (!crash.isEmpty()) body.append("\n== DriveDeck crash ==\n").append(crash);
@@ -439,7 +439,7 @@ public final class HeRemote {
         if (!"ok".equals(r)) return "שליחת לוג נכשלה: " + r;
         p.edit().putLong("log_since", now).apply();
         if (!crash.isEmpty()) crashFile(app).delete();
-        HeLog.sent(app);
+        HeLog.sent();
         return "לוג נשלח: " + path;
     }
 
@@ -608,13 +608,8 @@ public final class HeRemote {
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             public void uncaughtException(Thread th, Throwable e) {
                 try {
-                    FileOutputStream out = new FileOutputStream(crashFile(app), true);
-                    try {
-                        String s = new Date() + " FATAL in thread " + th.getName() + " (he-" + BUILD + ")\n" + Log.getStackTraceString(e) + "\n";
-                        out.write(s.getBytes("UTF-8"));
-                    } finally {
-                        out.close();
-                    }
+                    HeLog.writeText(crashFile(app), new Date() + " FATAL in thread " + th.getName() + " (he-" + BUILD + ")\n"
+                            + Log.getStackTraceString(e) + "\n", true);
                 } catch (Throwable ignored) { }
                 if (prev != null) prev.uncaughtException(th, e);
             }
@@ -665,7 +660,7 @@ public final class HeRemote {
         }
     }
 
-    private static String readFile(File f) {
+    static String readFile(File f) {
         try {
             if (f == null || !f.isFile()) return "";
             return readAll(new FileInputStream(f));
