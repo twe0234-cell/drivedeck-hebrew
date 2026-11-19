@@ -67,3 +67,15 @@ diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
   (rename to `.sending`, deleted only after a good upload) as section `== DriveDeck OBD log ==`.
 - Header now has `drive check:` state and `== last drive check report (...) ==` (prefs `obd_report`, `obd_report_time`).
 - `stopCheck` uploads at once; during a check an `obd ext:` sample line is logged every 2 s.
+
+## he-12 · voice 6
+- 11-19 logs: two drive checks started (01:21, 01:43) were lost: DriveDeck's process is restarted at every ignition
+  (Topway quick boot, new pid, `ACC_ON` broadcast), and the check lived only in memory.
+- `HeObd`: a running check is kept in prefs `drivedeck_he/check_start` and `files/he-check.csv` (one `Sample.csv()`
+  line per sample, flushed every 5). `init` → `resumeCheck` reloads it. The limit is 45 min of driving (sample gaps
+  capped at 5 s) or 4 h wall time. `obd minute` shows `check=N samples/M min`.
+- `BACKGROUND_EXTRAS` now include 0106/0107 (fuel trims were always "-" outside the check screen).
+- Voice app 6: launcher activities `CarCheckActivity` ("בדיקת רכב", sends `ru.drivedeck.he.OBD`) and `EqActivity`
+  ("אקולייזר", `com.tw.eq/.EQChoiceActivity`, then the launch intent), with vector icons `ic_car_check` / `ic_eq`.
+- `RootBootEnforcer.replaceEqShortcut`: disables `ru.drivedeck.eqshortcut` (an old shortcut app with a plain icon,
+  source not here) once voice ≥ 6 is installed.

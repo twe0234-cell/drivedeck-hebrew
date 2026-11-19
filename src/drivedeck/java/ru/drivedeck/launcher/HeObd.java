@@ -31,10 +31,11 @@ import java.util.Map;
 public final class HeObd {
     static final String TAG = "DriveDeckHe";
     private static final String[] CHECK_EXTRAS = { "0105", "0106", "0107", "0142", "014C", "010E", "0115", "0114", "0101" };
-    private static final String[] BACKGROUND_EXTRAS = { "0105", "0142" };
+    private static final String[] BACKGROUND_EXTRAS = { "0105", "0142", "0106", "0107" };
     private static final int BACKGROUND_EVERY = 100;    // regular answers between two background extras (~7 s)
     private static final long FRESH_MS = 20000L;
-    private static final long CHECK_MAX_MS = 45 * 60_000L;
+    private static final long CHECK_MAX_MS = 45 * 60_000L;      // of driving (samples), across ignitions
+    private static final long CHECK_WALL_MS = 4 * 60 * 60_000L;  // a check left running ends after 4 hours
     private static final int MAX_SAMPLES = 6000;
 
     private static volatile Context sApp;
@@ -59,12 +60,81 @@ public final class HeObd {
     private static double sLastObdSpeed = Double.NaN;
     private static volatile HeObdMath.Sample sLastSample;
     private static long sLastExtLog = 0L;
+    private static long sActiveMs = 0L, sLastSampleT = 0L;
+    private static final StringBuilder sCsv = new StringBuilder();
+    private static int sCsvLines = 0;
 
     private HeObd() { }
 
     /** From process start (RootBootEnforcer.initAndEnforce). */
     public static void init(Context app) {
         if (app != null) sApp = app.getApplicationContext() != null ? app.getApplicationContext() : app;
+        try { resumeCheck(); } catch (Throwable t) { HeLog.w("obd check resume", t); }
+    }
+
+    // ================================================================== drive check across restarts
+    // DriveDeck's process is restarted at ignition (Topway quick boot), so a running check is kept in prefs
+    // (start time) and a file (one line per sample), and picked up again by the next process.
+
+    private static java.io.File checkFile(Context app) { return new java.io.File(app.getFilesDir(), "he-check.csv"); }
+
+    private static SharedPreferences hePrefs(Context app) { return app.getSharedPreferences("drivedeck_he", 0); }
+
+    private static void resumeCheck() {
+        Context app = sApp;
+        if (app == null || sCheckStart > 0) return;
+        long start = hePrefs(app).getLong("check_start", 0L);
+        if (start <= 0) return;
+        List<HeObdMath.Sample> loaded = new ArrayList<HeObdMath.Sample>();
+        java.io.File f = checkFile(app);
+        if (f.exists()) {
+            java.io.BufferedReader r = null;
+            try {
+                r = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(f), "UTF-8"));
+                String line;
+                while ((line = r.readLine()) != null && loaded.size() < MAX_SAMPLES) {
+                    HeObdMath.Sample x = HeObdMath.Sample.fromCsv(line);
+                    if (x != null) loaded.add(x);
+                }
+            } catch (Throwable e) {
+                HeLog.w("obd check file", e);
+            } finally {
+                try { if (r != null) r.close(); } catch (Throwable ignored) { }
+            }
+        }
+        synchronized (sSamples) { sSamples.clear(); sSamples.addAll(loaded); }
+        sActiveMs = 0L; sLastSampleT = 0L;
+        for (HeObdMath.Sample x : loaded) countActive(x.t);
+        sCheckStart = start;
+        HeObdExt.start();
+        HeLog.i("obd check resumed after restart: " + loaded.size() + " samples, " + (sActiveMs / 60_000L) + " min of driving");
+        if (System.currentTimeMillis() - start > CHECK_WALL_MS || sActiveMs > CHECK_MAX_MS) stopCheck();
+        else readCodes();
+    }
+
+    private static void countActive(long t) {
+        if (sLastSampleT > 0 && t > sLastSampleT) sActiveMs += Math.min(t - sLastSampleT, 5000L);
+        sLastSampleT = t;
+    }
+
+    private static void saveSample(HeObdMath.Sample s, boolean force) {
+        Context app = sApp;
+        if (app == null) return;
+        synchronized (sCsv) {
+            if (s != null) { sCsv.append(s.csv()).append('\n'); sCsvLines++; }
+            if (sCsvLines == 0 || (!force && sCsvLines < 5)) return;
+            java.io.FileOutputStream out = null;
+            try {
+                out = new java.io.FileOutputStream(checkFile(app), true);
+                out.write(sCsv.toString().getBytes("UTF-8"));
+            } catch (Throwable e) {
+                HeLog.w("obd check save", e);
+            } finally {
+                try { if (out != null) out.close(); } catch (Throwable ignored) { }
+            }
+            sCsv.setLength(0);
+            sCsvLines = 0;
+        }
     }
 
     // ================================================================== the hook
@@ -244,14 +314,16 @@ public final class HeObd {
                 sLastExtLog = now;
                 HeLog.i("obd ext: " + HeObdUds.line(s));
             }
+            boolean added = false;
             synchronized (sSamples) {
-                if (sSamples.size() < MAX_SAMPLES) sSamples.add(s);
+                if (sSamples.size() < MAX_SAMPLES) { sSamples.add(s); added = true; }
             }
-            if (now - sCheckStart > CHECK_MAX_MS) stopCheck();
+            if (added) { countActive(now); saveSample(s, false); }
+            if (sActiveMs > CHECK_MAX_MS || now - sCheckStart > CHECK_WALL_MS || !added) stopCheck();
         }
         if (now - sLastSummary >= 60_000L) {
             sLastSummary = now;
-            HeLog.i("obd minute: " + summary(s));
+            HeLog.i("obd minute: " + summary(s) + (sCheckStart > 0 ? " check=" + sampleCount() + " samples/" + (sActiveMs / 60_000L) + " min" : ""));
         }
     }
 
@@ -334,7 +406,14 @@ public final class HeObd {
         sMil = -1;
         sLastSample = null;
         HeObdExt.start();
+        sActiveMs = 0L; sLastSampleT = 0L;
+        synchronized (sCsv) { sCsv.setLength(0); sCsvLines = 0; }
         sCheckStart = System.currentTimeMillis();
+        Context app = sApp;
+        if (app != null) {
+            checkFile(app).delete();
+            hePrefs(app).edit().putLong("check_start", sCheckStart).apply();
+        }
         readCodes();
         HeLog.i("obd check started");
     }
@@ -343,6 +422,11 @@ public final class HeObd {
     static String stopCheck() {
         if (sCheckStart <= 0) return lastReport();
         sCheckStart = -1L;
+        synchronized (sCsv) { sCsv.setLength(0); sCsvLines = 0; }
+        if (sApp != null) {
+            hePrefs(sApp).edit().remove("check_start").apply();
+            checkFile(sApp).delete();
+        }
         HeObdExt.stop();
         String report = report();
         Context app = sApp;

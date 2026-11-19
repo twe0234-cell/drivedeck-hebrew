@@ -153,6 +153,44 @@ public final class HeObdMath {
         public double[] misfire = nan(4), knock = nan(4), corr = nan(4);
         public double oilT = Double.NaN, torque = Double.NaN;
 
+        /** One line for the drive-check file (survives DriveDeck restarts at ignition). */
+        public String csv() {
+            StringBuilder b = new StringBuilder().append(t);
+            double[] v = { rpm, speed, gpsSpeed, gpsAccuracy, coolant, iat, ambient, stft, ltft, map, baro, load, throttle,
+                    voltage, o2up, o2down, steer, gear, clutch1T, clutch2T, dsgPressure, oilT, torque };
+            for (double d : v) b.append(',').append(c(d));
+            for (double[] a : new double[][] { wheel, misfire, knock, corr }) for (double d : a) b.append(',').append(c(d));
+            return b.toString();
+        }
+
+        private static String c(double d) {
+            if (Double.isNaN(d)) return "";
+            long l = Math.round(d);
+            return l == d ? Long.toString(l) : Double.toString(Math.round(d * 1000) / 1000.0);
+        }
+
+        /** The reverse of {@link #csv}; null for a broken line. */
+        public static Sample fromCsv(String line) {
+            try {
+                String[] f = line.split(",", -1);
+                if (f.length != 40) return null;
+                Sample s = new Sample();
+                s.t = Long.parseLong(f[0]);
+                double[] v = new double[39];
+                for (int i = 0; i < 39; i++) v[i] = f[i + 1].isEmpty() ? Double.NaN : Double.parseDouble(f[i + 1]);
+                s.rpm = v[0]; s.speed = v[1]; s.gpsSpeed = v[2]; s.gpsAccuracy = v[3]; s.coolant = v[4]; s.iat = v[5];
+                s.ambient = v[6]; s.stft = v[7]; s.ltft = v[8]; s.map = v[9]; s.baro = v[10]; s.load = v[11];
+                s.throttle = v[12]; s.voltage = v[13]; s.o2up = v[14]; s.o2down = v[15]; s.steer = v[16]; s.gear = v[17];
+                s.clutch1T = v[18]; s.clutch2T = v[19]; s.dsgPressure = v[20]; s.oilT = v[21]; s.torque = v[22];
+                for (int i = 0; i < 4; i++) {
+                    s.wheel[i] = v[23 + i]; s.misfire[i] = v[27 + i]; s.knock[i] = v[31 + i]; s.corr[i] = v[35 + i];
+                }
+                return s;
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+
         static double[] nan(int n) {
             double[] d = new double[n];
             java.util.Arrays.fill(d, Double.NaN);

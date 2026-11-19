@@ -250,27 +250,47 @@ public class RootBootEnforcer {
     static final String ANDROID_AUTO = "com.google.android.projection.gearhead";
 
     private static void disableAndroidAuto(Context app) {
+        disablePackage(app, ANDROID_AUTO, "Android Auto");
+        replaceEqShortcut(app);
+    }
+
+    /**
+     * The old equalizer shortcut app (ru.drivedeck.eqshortcut, plain icon) is hidden once the voice app has its own
+     * "אקולייזר" launcher icon (voice versionCode 6+). Reversible: `pm enable ru.drivedeck.eqshortcut`.
+     */
+    static final String OLD_EQ_SHORTCUT = "ru.drivedeck.eqshortcut";
+
+    private static void replaceEqShortcut(Context app) {
+        try {
+            if (app.getPackageManager().getPackageInfo("il.carvoice.he", 0).versionCode < 6) return;
+        } catch (Throwable notInstalled) {
+            return;
+        }
+        disablePackage(app, OLD_EQ_SHORTCUT, "old EQ shortcut");
+    }
+
+    private static void disablePackage(Context app, String pkg, String name) {
         try {
             PackageManager pm = app.getPackageManager();
             int st;
             try {
-                st = pm.getApplicationEnabledSetting(ANDROID_AUTO);
+                st = pm.getApplicationEnabledSetting(pkg);
             } catch (IllegalArgumentException notInstalled) {
                 return;
             }
             if (st == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
                     || st == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) return;
             try {
-                pm.setApplicationEnabledSetting(ANDROID_AUTO, PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER, 0);
-                Log.i(TAG, "Android Auto disabled");
+                pm.setApplicationEnabledSetting(pkg, PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER, 0);
+                Log.i(TAG, name + " disabled");
                 return;
             } catch (Throwable e) {
-                Log.w(TAG, "Android Auto: PackageManager refused, trying su", e);
+                Log.w(TAG, name + ": PackageManager refused, trying su", e);
             }
-            Runtime.getRuntime().exec(new String[] { "su", "-c", "pm disable-user --user 0 " + ANDROID_AUTO }).waitFor();
-            Log.i(TAG, "Android Auto disabled via su, state " + pm.getApplicationEnabledSetting(ANDROID_AUTO));
+            Runtime.getRuntime().exec(new String[] { "su", "-c", "pm disable-user --user 0 " + pkg }).waitFor();
+            Log.i(TAG, name + " disabled via su, state " + pm.getApplicationEnabledSetting(pkg));
         } catch (Throwable e) {
-            Log.w(TAG, "Android Auto disable failed", e);
+            Log.w(TAG, name + " disable failed", e);
         }
     }
 

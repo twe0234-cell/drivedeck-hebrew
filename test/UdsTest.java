@@ -62,6 +62,15 @@ public class UdsTest {
     for (int i = 0; i < 200; i++) { HeObdMath.Sample x = new HeObdMath.Sample(); x.speed = 50; x.wheel = new double[]{50, 50, i % 20 == 0 ? 0 : 50, 50}; b.add(x); }
     String bad = HeObdUds.evaluate(b, null, null, null).toString();
     if (!bad.contains("חיישן ABS אחורי שמאלי")) throw new AssertionError("sensor " + bad);
+    { // drive-check file line round trip
+      HeObdMath.Sample cs = new HeObdMath.Sample();
+      cs.t = 1795029552000L; cs.rpm = 1500.5; cs.speed = 52; cs.ltft = -3.125; cs.wheel[2] = 51.7; cs.misfire[1] = 12; cs.gear = 4;
+      HeObdMath.Sample cr = HeObdMath.Sample.fromCsv(cs.csv());
+      if (cr == null || cr.t != cs.t || cr.rpm != 1500.5 || cr.speed != 52 || cr.ltft != -3.125 || cr.wheel[2] != 51.7
+          || cr.misfire[1] != 12 || cr.gear != 4 || !Double.isNaN(cr.coolant) || !Double.isNaN(cr.wheel[0]))
+        throw new AssertionError("csv round trip: " + cs.csv());
+      if (HeObdMath.Sample.fromCsv("1,2,3") != null) throw new AssertionError("csv broken line");
+    }
     System.out.println("UdsTest OK");
   }
 }
