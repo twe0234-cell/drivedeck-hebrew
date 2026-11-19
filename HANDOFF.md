@@ -79,3 +79,11 @@ diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
   ("אקולייזר", `com.tw.eq/.EQChoiceActivity`, then the launch intent), with vector icons `ic_car_check` / `ic_eq`.
 - `RootBootEnforcer.replaceEqShortcut`: disables `ru.drivedeck.eqshortcut` (an old shortcut app with a plain icon,
   source not here) once voice ≥ 6 is installed.
+
+## he-13: why every manufacturer request got NO DATA
+- 11-19 checks (02:29, 15:57): every 22/19 to 7E0, 7E1 and 713 → `NO DATA` after ~1.25 s, never a 7F; mode 01 on 7DF
+  fine. Each miss stalled DriveDeck's loop, so a check got one sample per ~80 s.
+- `HeObdExt` backoff: a unit with 6 misses in a row is asked again only every 3 min (`backoff=` in `obd ext stat`).
+- `HeObdUds.probeBatch` (first start batch): `ATSH7E0 ATCRA7E8 0100 22F190 ATCAF0 0322F19000000000 ATCAF1 ATAR
+  ATSH7DF 22F190`. Tells apart: physical addressing at all (0100 on 7E0), UDS on 7E0, a clone sending short
+  frames (padded raw frame), functional UDS. `obd ext rx CMD: raw` lines (first 80 per check) show the answers.

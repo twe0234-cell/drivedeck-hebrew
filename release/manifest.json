@@ -1,12 +1,12 @@
 {
-  "build": 12,
+  "build": 13,
   "apps": [
     {
       "package": "ru.drivedeck.launcher",
-      "build": 12,
-      "file": "DriveDeck-0.6.7-Hebrew-he12.apk",
+      "build": 13,
+      "file": "DriveDeck-0.6.7-Hebrew-he13.apk",
       "size": 1118980,
-      "sha256": "3a89e26f4b2af5ea46c09d69a5e8577853b36332f1942b07a8476c2a6d5cd5e9"
+      "sha256": "ff300ec9fc28af469e92442b8fe3c95ba0332c3c538578d07e82037069cbb58d"
     },
     {
       "package": "il.carvoice.he",

@@ -33,6 +33,12 @@ final class HeObdExt {
     private static final Map<String, int[]> sTries = new HashMap<String, int[]>(); // unit -> {asked, answered}
     private static final Set<String> sBadAt = new LinkedHashSet<String>();
     private static int sScaleA = 0, sScaleB = 0;
+    /** Per unit: requests in a row without an answer, last batch time, whether it ever answered. A unit that does not
+     *  answer is asked again only every RETRY_MS, so DriveDeck's own polling (and the samples) keep their pace. */
+    private static final Map<String, long[]> sBackoff = new HashMap<String, long[]>(); // unit -> {misses, lastTry, ok}
+    private static final int MISSES_TO_PAUSE = 6;
+    private static final long RETRY_MS = 3 * 60_000L;
+    private static int sTraced = 0;
 
     private HeObdExt() { }
 
@@ -40,18 +46,19 @@ final class HeObdExt {
 
     static void start() {
         synchronized (sLatest) {
-            sLatest.clear(); sStat.clear(); sCodes.clear(); sTries.clear(); sBadAt.clear();
+            sLatest.clear(); sStat.clear(); sCodes.clear(); sTries.clear(); sBadAt.clear(); sBackoff.clear();
             sStart.clear(); sStart.addAll(HeObdUds.startBatches());
         }
         sScaleA = sScaleB = 0;
         sLiveIndex = 0;
         sInFlight = 0;
+        sTraced = 0;
         sOn = true;
     }
 
     static void stop() {
         sOn = false;
-        HeLog.i("obd ext stat: " + stat() + " codes=" + codes() + " failed=" + failed() + " at?=" + sBadAt);
+        HeLog.i("obd ext stat: " + stat() + " codes=" + codes() + " failed=" + failed() + " at?=" + sBadAt + " backoff=" + backoffText());
     }
 
     /** After each regular answer: the next batch, when the previous one is through. */
@@ -59,13 +66,42 @@ final class HeObdExt {
         if (!sOn) return;
         long now = System.currentTimeMillis();
         if (sInFlight > 0 && now - sSentAt < STUCK_MS) return;
-        List<String> b;
+        List<String> b = null;
         synchronized (sLatest) {
-            b = !sStart.isEmpty() ? sStart.remove(0) : sLive.get(sLiveIndex++ % sLive.size());
+            if (!sStart.isEmpty()) {
+                b = sStart.remove(0);
+            } else {
+                for (int i = 0; i < sLive.size() && b == null; i++) {
+                    List<String> c = sLive.get(sLiveIndex++ % sLive.size());
+                    if (!paused(HeObdUds.unitOfBatch(c), now)) b = c;
+                }
+            }
+            String u = b == null ? null : HeObdUds.unitOfBatch(b);
+            if (u != null) backoff(u)[1] = now;
         }
+        if (b == null) return; // every unit is paused: DriveDeck polls alone until a retry is due
         sInFlight = b.size() + 1; // + the header restore
         sSentAt = now;
         if (!HeObd.sendBatch(b)) sInFlight = 0;
+    }
+
+    private static long[] backoff(String unit) {
+        long[] b = sBackoff.get(unit);
+        if (b == null) sBackoff.put(unit, b = new long[3]);
+        return b;
+    }
+
+    private static boolean paused(String unit, long now) {
+        if (unit == null) return false;
+        long[] b = backoff(unit);
+        return b[0] >= MISSES_TO_PAUSE && now - b[1] < RETRY_MS;
+    }
+
+    /** Every answer to one of our commands while checking, raw, for the first 80 of a check (the remote log). */
+    static void trace(String cmd, String raw) {
+        if (!sOn || sTraced >= 80) return;
+        sTraced++;
+        HeLog.i("obd ext rx " + cmd + ": " + (raw == null ? "null" : raw.replace('\r', ' ').replace('\n', ' ').trim()));
     }
 
     /** One of our commands answered (DriveDeck's handler thread). */
@@ -80,6 +116,10 @@ final class HeObdExt {
         String unit = HeObdUds.unitOfReply(id);
         String asked = unitOfCommand(cmd);
         count(asked, false);
+        if (asked != null) synchronized (sLatest) {
+            long[] b = backoff(asked);
+            if (unit != null) { b[0] = 0; b[2] = 1; } else b[0]++;
+        }
         if (unit == null) return;
         int[] p = HeObdUds.payload(raw, id);
         if (p == null) return;
@@ -161,6 +201,16 @@ final class HeObdExt {
             s.oilT = latest("oilT", now);
             s.torque = latest("torque", now);
         }
+    }
+
+    private static String backoffText() {
+        StringBuilder t = new StringBuilder();
+        synchronized (sLatest) {
+            for (Map.Entry<String, long[]> e : sBackoff.entrySet()) {
+                t.append(e.getKey()).append(":misses=").append(e.getValue()[0]).append(e.getValue()[2] == 1 ? ",answered " : ",never ");
+            }
+        }
+        return t.toString().trim();
     }
 
     static Map<String, Double> stat() {

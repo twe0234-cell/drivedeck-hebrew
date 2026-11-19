@@ -152,6 +152,7 @@ public final class HeObd {
         boolean ours;
         synchronized (sPending) { ours = sPending.remove(cmd); }
         long now = System.currentTimeMillis();
+        if (ours) HeObdExt.trace(cmd, raw);
         if (ours && (cmd.startsWith("AT") || cmd.startsWith("22") || cmd.startsWith("19"))) {
             HeObdExt.onAnswer(cmd, raw);
             return;

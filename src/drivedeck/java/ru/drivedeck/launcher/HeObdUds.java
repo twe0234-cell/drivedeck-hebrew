@@ -115,11 +115,33 @@ public final class HeObdUds {
     /** Once at the start: odometer, stored codes of the three units, DSG counters, the tyre-pressure record. */
     static List<List<String>> startBatches() {
         List<List<String>> b = new ArrayList<List<String>>();
+        b.add(probeBatch());
         b.add(batch(new String[] { "ATSH7E0" }, new String[] { "2210E0", "1902FF" }, new String[0]));
         b.add(batch(new String[] { "ATSH7E1" }, new String[] { "221062", "221077", "2210C9", "2210CC", "2210EA", "2210ED",
                 "221069", "22107E", "2210CA", "2210EB", "1902FF" }, new String[0]));
         b.add(batch(ABS_IN_LONG, new String[] { "221821", "1902FF", "221804" }, ABS_OUT_LONG));
         return b;
+    }
+
+    /**
+     * Once at the start, to see why physical requests got NO DATA (11-19: every 22/19 to 7E0, 7E1 and 713): the same
+     * engine asked physically for a standard PID (0100), for the VIN in UDS (22F190), the VIN again as a raw padded
+     * frame (CAF0: rules out a clone that sends short frames), and the VIN functionally on 7DF. All reads.
+     */
+    static List<String> probeBatch() {
+        return batch(new String[] { "ATSH7E0", "ATCRA7E8" },
+                new String[] { "0100", "22F190", "ATCAF0", "0322F19000000000", "ATCAF1", "ATAR", "ATSH7DF", "22F190" },
+                new String[0]);
+    }
+
+    /** Which unit a batch talks to (its first header), or null. */
+    static String unitOfBatch(List<String> b) {
+        for (String c : b) {
+            if (c.equals("ATSH7E0")) return ECM;
+            if (c.equals("ATSH7E1")) return TCM;
+            if (c.equals("ATSH713")) return ABS;
+        }
+        return null;
     }
 
     /** The live rotation: wheel speeds every other batch, engine and gearbox in between. */
