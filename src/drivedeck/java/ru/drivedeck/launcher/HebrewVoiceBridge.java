@@ -47,10 +47,11 @@ public final class HebrewVoiceBridge {
     /** Hardware key hook (MainActivity.dispatchKeyEvent + accessibility key filter). */
     public static boolean onKey(Context c, KeyEvent e) {
         if (e == null) return false;
+        HeHome.onKey(e);
         int k = e.getKeyCode();
         if (k != 219 && k != 231 && k != 84) return false; // ASSIST, VOICE_ASSIST, SEARCH
         if (!isInstalled(c)) return false;
-        if (e.getAction() == 0 && e.getRepeatCount() == 0) launch(c);
+        if (e.getAction() == 0 && e.getRepeatCount() == 0) { HeLog.i("voice key " + k + " -> Hebrew assistant"); launch(c); }
         return true;
     }
 

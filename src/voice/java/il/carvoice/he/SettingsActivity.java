@@ -34,6 +34,8 @@ public class SettingsActivity extends Activity {
             + "ניווט: \"נווט הביתה\", \"נווט לעבודה\", \"קח אותי לירושלים\"\n"
             + "אפליקציות: \"פתח וויז\", \"פתח יוטיוב\", \"פתח הגדרות\" (כל אפליקציה בשמה), \"מסך הבית\"\n"
             + "רכב: \"בדיקת רכב\", \"קודי תקלה\"\n"
+            + "שאלות: \"מה השעה\", \"איזה יום היום\"\n"
+            + "ואם משהו לא ברור – העוזר שואל \"לנגן את …?\" / \"לנווט אל …?\" ואפשר לענות \"כן\", \"לא\", \"נווט\" או \"פתח\"\n"
             + "מערכת: \"בדוק עדכונים\", \"שלח לוג\", \"עזרה\"";
 
     private TextView history;
@@ -65,6 +67,21 @@ public class SettingsActivity extends Activity {
                 showHistory();
             }
         }));
+
+        final android.content.SharedPreferences vp = getSharedPreferences("voice", 0);
+        final Button speak = new Button(this);
+        speak.setTextSize(20);
+        speak.setText(vp.getBoolean("speak", true) ? "תשובות בקול: פועל (לחץ לכיבוי)" : "תשובות בקול: כבוי (לחץ להפעלה)");
+        speak.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                boolean on = !vp.getBoolean("speak", true);
+                vp.edit().putBoolean("speak", on).apply();
+                speak.setText(on ? "תשובות בקול: פועל (לחץ לכיבוי)" : "תשובות בקול: כבוי (לחץ להפעלה)");
+            }
+        });
+        col.addView(speak);
+        col.addView(text("בלי אינטרנט: העוזר עובר לבד לזיהוי דיבור במכשיר. צריך שתהיה מותקנת עברית ב: "
+                + "הגדרות Google ← קול ← זיהוי דיבור אופליין.", 16));
 
         col.addView(text("מה נשמע לאחרונה", 26));
         history = text("", 16);

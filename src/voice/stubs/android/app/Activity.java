@@ -9,4 +9,6 @@ public class Activity extends android.content.ContextWrapper {
   public android.content.pm.PackageManager getPackageManager(){return null;}
   public void requestPermissions(String[] p,int c){}
   public int checkSelfPermission(String p){return 0;}
+  protected void onDestroy(){}
+  public void onRequestPermissionsResult(int r,String[] p,int[] g){}
 }

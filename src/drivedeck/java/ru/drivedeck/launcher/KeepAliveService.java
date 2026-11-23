@@ -57,13 +57,13 @@ public class KeepAliveService extends Service {
                         sScreenOffAt = -1L;
                         // a real sleep (car was switched off), not a short screen blank
                         if (off < 0 || now - off >= 30000L) {
-                            HeHome.onWake(c);
+                            HeHome.onWake(c, "screen on after " + (off < 0 ? "?" : (now - off) / 1000 + " s"));
                             RootBootEnforcer.onCarWake(c);
                         }
                     } else if (a != null) {
-                        // Topway ignition / wake (com.unisound.intent.action.ACC_ON, DO_WAKEUP)
-                        android.util.Log.i("DriveDeckHe", "car broadcast: " + a);
-                        HeHome.onWake(c);
+                        // Topway ignition (ACC_ON). DO_WAKEUP is no longer listened to: it is the voice wake-up,
+                        // not the car, and it pushed the voice / phone screens back to DriveDeck (he-15).
+                        HeHome.onWake(c, a);
                         RootBootEnforcer.onCarWake(c);
                     }
                 }
@@ -72,7 +72,6 @@ public class KeepAliveService extends Service {
             f.addAction("android.intent.action.SCREEN_ON");
             f.addAction("android.intent.action.SCREEN_OFF");
             f.addAction("com.unisound.intent.action.ACC_ON");
-            f.addAction("com.unisound.intent.action.DO_WAKEUP");
             f.addAction("com.tw.action.ACC_ON");
             f.addAction("com.topway.action.ACC_ON");
             registerReceiver(screenReceiver, f);

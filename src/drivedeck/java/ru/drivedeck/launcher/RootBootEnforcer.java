@@ -191,6 +191,20 @@ public class RootBootEnforcer {
             }
             he.edit().putBoolean("defaults_v2", true).apply();
         }
+        if (!he.getBoolean("defaults_v3", false)) {
+            // he-15: DriveDeck's own call window came up next to the unit's (Topway) call window on every call.
+            // The unit's phone app handles calls; DriveDeck's is switched off once (it can be switched on again
+            // in DriveDeck's settings and stays so).
+            try {
+                SharedPreferences dd = app.getSharedPreferences("drive_deck", 0);
+                boolean was = dd.getBoolean("voice_calls_enabled", false);
+                dd.edit().putBoolean("voice_calls_enabled", false).apply();
+                Log.i(TAG, "DriveDeck call window off (was " + was + ")");
+            } catch (Throwable e) {
+                Log.w(TAG, "call window default failed", e);
+            }
+            he.edit().putBoolean("defaults_v3", true).apply();
+        }
         seedObdCache(app);
     }
 
@@ -252,6 +266,28 @@ public class RootBootEnforcer {
     private static void disableAndroidAuto(Context app) {
         disablePackage(app, ANDROID_AUTO, "Android Auto");
         replaceEqShortcut(app);
+        grantVoiceMic(app);
+    }
+
+    /**
+     * Voice 8 listens in place (SpeechRecognizer), which needs the microphone permission in the voice app itself.
+     * DriveDeck (system uid) grants it so no permission dialog comes up in the car; su is the fallback.
+     */
+    private static void grantVoiceMic(Context app) {
+        try {
+            if (app.getPackageManager().getPackageInfo(HeRemote.VOICE_PKG, 0).versionCode < 8) return;
+        } catch (Throwable notInstalled) {
+            return;
+        }
+        String cmd = "pm grant " + HeRemote.VOICE_PKG + " android.permission.RECORD_AUDIO";
+        try {
+            int rc = Runtime.getRuntime().exec(new String[] { "sh", "-c", cmd }).waitFor();
+            if (rc == 0) { Log.i(TAG, "voice mic granted"); return; }
+            rc = Runtime.getRuntime().exec(new String[] { "su", "-c", cmd }).waitFor();
+            Log.i(TAG, "voice mic grant via su: " + rc);
+        } catch (Throwable e) {
+            Log.w(TAG, "voice mic grant failed", e);
+        }
     }
 
     /**

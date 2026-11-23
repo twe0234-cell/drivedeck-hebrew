@@ -12,7 +12,7 @@ import java.util.ArrayList;
 final class Parser {
     static final String DD = "dd", MEDIA = "media", VOL = "vol", NAV_FAV = "fav", NAV = "nav", PLAY = "play",
             ZEMER = "zemer", WAZE = "waze", MAPS = "maps", EQ = "eq", HOME = "home", OPEN = "open",
-            SETTINGS = "settings", HELP = "help", CANCEL = "cancel";
+            SETTINGS = "settings", HELP = "help", CANCEL = "cancel", ANSWER = "answer";
 
     static final class Cmd {
         final String kind, arg;
@@ -154,6 +154,11 @@ final class Parser {
             if (isOneOf(q, "מוזיקה", "מוסיקה", "שירים", "שיר", "משהו", "מוזיקה בבקשה")) return new Cmd(MEDIA, "126");
             return new Cmd(PLAY, q);
         }
+
+        // --- short questions answered without the internet
+        if (has("מה השעה", "כמה השעה", "מה השעה עכשיו", "השעה עכשיו", "תגיד לי מה השעה")) return new Cmd(ANSWER, "time");
+        if (has("מה התאריך", "איזה תאריך", "איזה יום היום", "מה היום", "איזה יום", "תאריך היום")) return new Cmd(ANSWER, "date");
+        if (has("תודה", "תודה רבה", "יפה מאוד", "כל הכבוד") && words.length <= 3) return new Cmd(ANSWER, "thanks");
 
         // --- media transport
         if (has("הבא", "הבאה", "דלג", "תדלג", "קדימה", "תעביר", "העבר", "תעביר שיר", "שיר אחר", "תחליף שיר", "החלף שיר", "נקסט"))

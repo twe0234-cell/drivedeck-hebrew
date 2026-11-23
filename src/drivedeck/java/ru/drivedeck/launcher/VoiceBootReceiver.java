@@ -22,7 +22,7 @@ public final class VoiceBootReceiver extends BroadcastReceiver {
         String action = intent.getAction();
         if (HeRemote.isCommand(intent)) { HeRemote.command(ctx, intent); return; }
         if (!isWake(action)) return;
-        HeHome.onWake(ctx);
+        HeHome.onWake(ctx, action);
         RootBootEnforcer.initAndEnforce(ctx);
         KeepAliveService.start(ctx);
         RootBootEnforcer.onCarWake(ctx);

@@ -30,25 +30,29 @@ final class Commands {
 
     Commands(Activity a) { this.a = a; }
 
-    /** Tries each recognition candidate; the first one that is a command runs. Returns what was done, or null. */
+    /** Typed test from the settings screen: the same understanding as the voice screen, answered in a toast. */
     String run(List<String> heard) {
         if (heard == null || heard.isEmpty()) { note("", "לא נקלט דיבור"); say("לא נקלט דיבור", false); return null; }
         Log.i(TAG, "heard " + heard);
-        for (String s : heard) {
-            Parser.Cmd c = s == null ? null : Parser.parse(s);
-            if (c == null) continue;
-            String done;
-            try { done = exec(c); } catch (Throwable e) { Log.w(TAG, "command failed: " + c, e); done = "שגיאה: " + e.getClass().getSimpleName(); }
-            Log.i(TAG, "\"" + s + "\" -> " + c + " -> " + done);
-            note(s, done);
-            say("\"" + s + "\"  ←  " + done, false);
-            return done;
-        }
+        Parser.Cmd c = Smart.understand(heard);
         String first = heard.get(0);
-        Log.i(TAG, "no command in " + heard);
-        note(first, "לא הבנתי");
-        say("לא הבנתי: \"" + first + "\"\nאפשר להגיד \"עזרה\" לרשימת הפקודות", true);
-        return null;
+        if (c == null) {
+            List<Parser.Cmd> g = Smart.guesses(first);
+            String q = g.isEmpty() ? "לא הבנתי" : "לא בטוח שהבנתי – " + Smart.describe(g.get(0)) + "?";
+            note(first, q);
+            say("\"" + first + "\"  ←  " + q, true);
+            return null;
+        }
+        String done = execSafe(c);
+        Log.i(TAG, "\"" + first + "\" -> " + c + " -> " + done);
+        note(first, done);
+        say("\"" + first + "\"  ←  " + done, false);
+        return done;
+    }
+
+    /** Runs one command; what was done, in words that can be shown and spoken. */
+    String execSafe(Parser.Cmd c) {
+        try { return exec(c); } catch (Throwable e) { Log.w(TAG, "command failed: " + c, e); return "שגיאה: " + e.getClass().getSimpleName(); }
     }
 
     private String exec(Parser.Cmd c) {
@@ -67,10 +71,21 @@ final class Commands {
         if (k.equals(Parser.SETTINGS)) return start(new Intent("android.settings.SETTINGS")) ? "פותח הגדרות" : "ההגדרות לא נפתחו";
         if (k.equals(Parser.HELP)) return start(new Intent(a, SettingsActivity.class)) ? "רשימת הפקודות" : "שגיאה";
         if (k.equals(Parser.OPEN)) return openByName(c.arg);
+        if (k.equals(Parser.ANSWER)) return answer(c.arg);
         return "בוטל";
     }
 
     // ------------------------------------------------------------------ actions
+
+    private static final String[] DAYS = { "ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת" };
+
+    private String answer(String what) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        if ("time".equals(what)) return "השעה " + new SimpleDateFormat("HH:mm", Locale.ROOT).format(cal.getTime());
+        if ("date".equals(what)) return "היום יום " + DAYS[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1] + ", "
+                + new SimpleDateFormat("d.M.yyyy", Locale.ROOT).format(cal.getTime());
+        return "בשמחה";
+    }
 
     private boolean installed(String pkg) {
         try { return a.getPackageManager().getLaunchIntentForPackage(pkg) != null; } catch (Throwable e) { return false; }
@@ -190,7 +205,7 @@ final class Commands {
         try { Toast.makeText(a.getApplicationContext(), s, longer ? 1 : 0).show(); } catch (Throwable ignored) { }
     }
 
-    private void note(String heard, String done) {
+    void note(String heard, String done) {
         try {
             SharedPreferences p = a.getSharedPreferences(PREFS, 0);
             String line = new SimpleDateFormat("HH:mm", Locale.ROOT).format(new Date()) + "  \"" + heard + "\"  ←  " + done;

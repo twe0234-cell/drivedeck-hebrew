@@ -87,3 +87,27 @@ diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
 - `HeObdUds.probeBatch` (first start batch): `ATSH7E0 ATCRA7E8 0100 22F190 ATCAF0 0322F19000000000 ATCAF1 ATAR
   ATSH7DF 22F190`. Tells apart: physical addressing at all (0100 on 7E0), UDS on 7E0, a clone sending short
   frames (padded raw frame), functional UDS. `obd ext rx CMD: raw` lines (first 80 per check) show the answers.
+
+## he-15 · voice 8 (2026-11-23)
+- Owner: steering-wheel voice key and phone key stopped bringing up their screens; on a call both the Topway and the
+  DriveDeck call windows showed. Logs are too thin to see the key path (no `HebrewVoice` / key lines survive chatty),
+  but HeHome was the one piece that pushes other apps away: it counted every `dofun` package as a launcher, was
+  re-armed by `com.unisound.intent.action.DO_WAKEUP` (the voice wake-up, added as a "car wake" in he-7) and stayed armed
+  for 2 min regardless of what the driver did. 11-14..11-22 logs: 30 replacements, all of `com.dofun.carsetting`.
+- `HeHome` now: armed only by process start / boot / ACC_ON / screen on after >=30 s off; replaces only HOME apps
+  (+ `com.dofun.carsetting`); 60 s window, ends 8 s after a replacement, and at once on any hardware key
+  (`HebrewVoiceBridge.onKey` -> `HeHome.onKey`), on any non-launcher foreground app except passive ones (keyboard,
+  Waze in DriveDeck's display, reverse camera, ZemerDrive's own resume), or on a call (`AudioManager.getMode()!=0` or
+  `c.Z7.Q.a.e != 0`, DriveDeck's HFP state). `KeepAliveService` no longer listens to DO_WAKEUP.
+- `HeLog` (private file, uploaded with the log) now gets `key <code> scan=… fg=…`, `foreground: pkg / class`,
+  `home guard: …` lines. Header: `assistant_on`, `voice_interaction`, DriveDeck `calls_ui/voice_button/own_voice`,
+  `home guard:` state. Next log answers what the wheel voice/phone keys actually send.
+- `RootBootEnforcer.initDefaults` (`defaults_v3`, once): DriveDeck pref `drive_deck/voice_calls_enabled=false`
+  (its own call overlay, `MainActivity.w` / `c.Z7`). `grantVoiceMic`: `pm grant il.carvoice.he RECORD_AUDIO` (system
+  uid, su fallback) at process start when voice >= 8.
+- Voice 8: `VoiceActivity` uses `SpeechRecognizer` in place (bottom panel), retries with `PREFER_OFFLINE` after a
+  network error, Hebrew TTS (`voice/speak`, default on), `Smart` (pure Java, `test/VoiceTest.java`): word repair
+  against Parser's command words, guesses (play / navigate / open) asked as a yes/no question. Fallback to Google's
+  recogniser screen without the mic permission or a recognition service.
+- Not done: an online LLM fallback for free-form requests. The voice app is plain Java against stubs (no Gradle), so
+  the Anthropic Java SDK does not fit as is; needs a decision (and an API key) from the owner.

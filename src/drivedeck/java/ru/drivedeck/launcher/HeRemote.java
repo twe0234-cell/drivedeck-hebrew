@@ -50,7 +50,7 @@ import java.util.TimeZone;
  */
 public final class HeRemote {
     /** This build's number; a release he-N with N greater than this one updates DriveDeck. */
-    public static final int BUILD = 14;
+    public static final int BUILD = 15;
 
     static final String UPDATE_REPO = "twe0234-cell/drivedeck-hebrew";
     static final String LOG_REPO = "twe0234-cell/zemer-drive";
@@ -84,7 +84,7 @@ public final class HeRemote {
         sStarted = true;
         final Context app = ctx.getApplicationContext() != null ? ctx.getApplicationContext() : ctx;
         installCrashHandler(app);
-        HeHome.onWake(app); // process start = boot: the firmware's launcher may come up over DriveDeck
+        HeHome.onWake(app, "process start"); // process start = boot: the firmware's launcher may come up over DriveDeck
         SharedPreferences p = prefs(app);
         if (p.getBoolean("post_update_wake", false)) {
             // first start after a self-update: reconnect OBD like a car wake
@@ -464,7 +464,14 @@ public final class HeRemote {
         try {
             android.content.ContentResolver cr = app.getContentResolver();
             b.append("a11y: ").append(android.provider.Settings.Secure.getString(cr, "enabled_accessibility_services")).append('\n');
-            b.append("assistant: ").append(android.provider.Settings.Secure.getString(cr, "assistant")).append('\n');
+            b.append("assistant: ").append(android.provider.Settings.Secure.getString(cr, "assistant"))
+                    .append(" assistant_on=").append(android.provider.Settings.Secure.getString(cr, "assistant_on"))
+                    .append(" voice_interaction=").append(android.provider.Settings.Secure.getString(cr, "voice_interaction_service")).append('\n');
+            SharedPreferences dd = app.getSharedPreferences("drive_deck", 0);
+            b.append("drivedeck: calls_ui=").append(dd.getBoolean("voice_calls_enabled", false))
+                    .append(" voice_button=").append(dd.getBoolean("voice_button_enabled", false))
+                    .append(" own_voice=").append(dd.getBoolean("voice_enabled", false)).append('\n');
+            b.append("home guard: ").append(HeHome.state()).append('\n');
         } catch (Throwable ignored) { }
         SharedPreferences p = prefs(app);
         b.append("last update check: ").append(p.getString("update_status", "-")).append('\n');
