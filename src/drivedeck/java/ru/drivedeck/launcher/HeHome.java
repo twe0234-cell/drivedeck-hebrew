@@ -145,17 +145,14 @@ public final class HeHome {
 
     /** A Bluetooth (or SIM) call is ringing or active: never fight the phone screen. */
     static boolean inCall(Context ctx) {
-        try {
-            android.media.AudioManager am = (android.media.AudioManager) ctx.getSystemService("audio");
-            if (am != null && am.getMode() != 0) return true; // RINGTONE / IN_CALL / IN_COMMUNICATION
-        } catch (Throwable ignored) { }
-        try {
-            java.lang.ref.WeakReference r = c.Z7.Q;
-            c.Z7 z = r == null ? null : (c.Z7) r.get();
-            if (z != null && z.a != null && z.a.e != 0) return true; // DriveDeck's own HFP call state
-        } catch (Throwable ignored) { }
-        return false;
+        // he-16: DriveDeck's own phone module (c.Z7) is off, so the call state comes from HeCall
+        return HeCall.inCall(ctx);
     }
+
+    /** The app whose window was last reported in front. */
+    static String foreground() { return sForeground; }
+
+    static boolean isSelf(String pkg) { return SELF.equals(pkg); }
 
     /** The Topway theme launcher: the other HOME apps (not the boot-time FallbackHome of Settings). */
     static boolean isForeignLauncher(Context ctx, String pkg) {

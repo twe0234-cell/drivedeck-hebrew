@@ -111,3 +111,40 @@ diagnose from the remote log (zemer-drive, branch `drivedeck-logs`).
   recogniser screen without the mic permission or a recognition service.
 - Not done: an online LLM fallback for free-form requests. The voice app is plain Java against stubs (no Gradle), so
   the Anthropic Java SDK does not fit as is; needs a decision (and an API key) from the owner.
+
+## he-16 · voice 9 (2026-11-24)
+- Owner (after he-15): the steering-wheel phone and voice keys still open nothing; calls should go to the unit's phone
+  app (Topway com.tw.bt) only, with no DriveDeck dialler, and Topway's call screen must come to the front over DriveDeck.
+- Findings (11-23/24 logs + decompiled com.tw.service / com.tw.bt / DriveDeck 0.6.7):
+  - The wheel phone and voice keys never reach Android as KeyEvents: the MCU sends them to com.tw.service over TWUtil
+    (event 0x201, key 0x18 phone, 0x5a voice); the only `key` line in HeLog is 127 (pause) at ignition off. No root,
+    Magisk, HOME-app or `assistant_on` check on that path.
+  - com.tw.service ignores both keys while it believes a call is on (`Fa()`): MCU state, CarPlay/zlink flag, or the
+    persist properties `persist.dialer.call.state` / `persist.hicar.call.state`, which survive a reboot.
+  - Voice key: `/data/tw/speech_name` (line 1 package, line 2 activity, written by CarSetting -> Voice). Google's package
+    is special-cased to an implicit VOICE_COMMAND, which DriveDeck MainActivity and il.carvoice.he also answer.
+  - he-15's `voice_calls_enabled=false` only gates DriveDeck's voice dialling / contacts: its call overlay
+    (FrameLayout, type 2038, `c.d8` = jadx C0039d8) still came up 0.05-0.6 s after every Topway call window
+    (`com.tw.bt / LinearLayout`, CallingView, type 2002): c.Z7 polls the HFP client every second.
+- Changes:
+  - `build/patches/he16-phone.py` (applied to the tgz; idempotent, edits the archive in memory): `c.Z7.g()` returns at
+    once (no HFP/PBAP proxies, the same path as its own `r` flag), `c.Z7.e(KeyEvent)`, `c.d8.k()`, `c.C8.d()` return
+    false, `MainActivity.P()` (icon, PhoneEntry alias, home tile, PHONE action) -> `HeCall.openPhone` (Topway
+    `com.tw.bt/.ATBluetoothActivity`, NEW_TASK), DriveDeck's own dialler only if that fails.
+  - `HeCall`: follows `android.bluetooth.headsetclient.profile.action.AG_CALL_CHANGED` (`CallBook`, pure); a new call
+    disarms the home guard and, with DriveDeck in front, opens Topway's phone screen; `inCall` (audio mode or a
+    Bluetooth call) replaces the c.Z7 check in `HeHome` and stops `VoiceBootReceiver` from launching DriveDeck. A
+    call-state property that is not 0 with no call on is set back to 0 (setprop as system, su fallback) at process
+    start, every car wake and 5 s after the last call ends; logged as `call state … was … now …`.
+  - `HeVoiceKey` + `SpeechName` (pure): with voice >= 9, `/data/tw/speech_name` is written in place (keeps its label;
+    su + restorecon if refused or missing) to `il.carvoice.he` / `il.carvoice.he.WheelKeyActivity`; checked at process
+    start and every car wake (Topway's voice setting screen may write it again).
+  - Voice 9: `WheelKeyActivity` (NoDisplay) opens Gemini explicitly (`setPackage(GSA)`: VOICE_COMMAND, then ASSIST,
+    then VOICE_ASSIST) or the Hebrew assistant; setting "כפתור הקול בהגה" (pref `voice/wheel_target`, default gemini).
+  - Log header: `call: dialer=… hicar=… bt_calls=… audio_mode=…`, `voice key: speech_name=… SWC_VOICE_MODE=…`
+    (0: short press opens the assistant, 1: long press).
+  - `test/CallTest.java` (CallBook, SpeechName). `build/build.sh` also runs on Windows Git Bash (WORK must be a
+    case-sensitive folder: `fsutil file setCaseSensitiveInfo .work enable`; the tree has case-only name pairs).
+- Check in the next logs: the header `call:` values (was a property stuck?), `voice key (…)` and `phone:` lines,
+  `call <id> state …` lines during a call, and that no `ru.drivedeck.launcher / android.widget.FrameLayout` follows a
+  `com.tw.bt` window any more.

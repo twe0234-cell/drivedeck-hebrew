@@ -51,6 +51,8 @@ public class RootBootEnforcer {
         if (app == null) app = ctx;
         initDefaults(app);
         HeObd.init(app);
+        HeCall.init(app);
+        HeVoiceKey.pointAsync(app, "start");
         enforce(app);
         HeRemote.start(app);
     }
@@ -74,6 +76,8 @@ public class RootBootEnforcer {
         long now = SystemClock.elapsedRealtime();
         if (sLastWake > 0 && now - sLastWake < 20000L) return; // debounce: several wake broadcasts arrive together
         sLastWake = now;
+        HeCall.fixStuckStateAsync(app, "car wake");
+        HeVoiceKey.pointAsync(app, "car wake");
         if (HeRemote.hasPendingSelf(app)) {
             // a downloaded DriveDeck update installs now, before OBD connects (the new process reconnects)
             new Thread(new Runnable() {
@@ -205,6 +209,8 @@ public class RootBootEnforcer {
             }
             he.edit().putBoolean("defaults_v3", true).apply();
         }
+        // he-16: that switch only covers voice dialling and contacts; the call window itself is DriveDeck's phone
+        // module, switched off in the smali (build/patches/he16-phone.py) together with its call keys.
         seedObdCache(app);
     }
 

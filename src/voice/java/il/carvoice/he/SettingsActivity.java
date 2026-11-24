@@ -40,6 +40,12 @@ public class SettingsActivity extends Activity {
 
     private TextView history;
 
+    static String wheelLabel(String target) {
+        return WheelKeyActivity.HEBREW.equals(target)
+                ? "כפתור הקול בהגה: העוזר העברי (לחץ ל-Gemini)"
+                : "כפתור הקול בהגה: Gemini (לחץ לעוזר העברי)";
+    }
+
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         setTitle("עוזר קולי – הגדרות");
@@ -80,6 +86,20 @@ public class SettingsActivity extends Activity {
             }
         });
         col.addView(speak);
+
+        // voice 9: what the steering-wheel voice key opens (WheelKeyActivity; DriveDeck points the key there)
+        final Button wheel = new Button(this);
+        wheel.setTextSize(20);
+        wheel.setText(wheelLabel(vp.getString(WheelKeyActivity.PREF, WheelKeyActivity.GEMINI)));
+        wheel.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                String next = WheelKeyActivity.GEMINI.equals(vp.getString(WheelKeyActivity.PREF, WheelKeyActivity.GEMINI))
+                        ? WheelKeyActivity.HEBREW : WheelKeyActivity.GEMINI;
+                vp.edit().putString(WheelKeyActivity.PREF, next).apply();
+                wheel.setText(wheelLabel(next));
+            }
+        });
+        col.addView(wheel);
         col.addView(text("בלי אינטרנט: העוזר עובר לבד לזיהוי דיבור במכשיר. צריך שתהיה מותקנת עברית ב: "
                 + "הגדרות Google ← קול ← זיהוי דיבור אופליין.", 16));
 

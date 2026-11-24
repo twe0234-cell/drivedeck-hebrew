@@ -33,7 +33,7 @@ import java.util.Locale;
  */
 public class VoiceActivity extends Activity {
     private static final int REQ = 7301, REQ_PERM = 7302;
-    static final int VERSION = 8;
+    static final int VERSION = 9;
     private static final String MIC = "android.permission.RECORD_AUDIO";
 
     private final Handler main = new Handler(Looper.getMainLooper());

@@ -50,7 +50,7 @@ import java.util.TimeZone;
  */
 public final class HeRemote {
     /** This build's number; a release he-N with N greater than this one updates DriveDeck. */
-    public static final int BUILD = 15;
+    public static final int BUILD = 16;
 
     static final String UPDATE_REPO = "twe0234-cell/drivedeck-hebrew";
     static final String LOG_REPO = "twe0234-cell/zemer-drive";
@@ -473,6 +473,8 @@ public final class HeRemote {
                     .append(" own_voice=").append(dd.getBoolean("voice_enabled", false)).append('\n');
             b.append("home guard: ").append(HeHome.state()).append('\n');
         } catch (Throwable ignored) { }
+        try { b.append("call: ").append(HeCall.state(app)).append('\n'); } catch (Throwable ignored) { }
+        try { b.append("voice key: ").append(HeVoiceKey.state(app)).append('\n'); } catch (Throwable ignored) { }
         SharedPreferences p = prefs(app);
         b.append("last update check: ").append(p.getString("update_status", "-")).append('\n');
         try {

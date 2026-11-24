@@ -23,9 +23,19 @@ fetch apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.10
 fetch r8.jar      https://dl.google.com/android/maven2/com/android/tools/r8/8.5.35/r8-8.5.35.jar
 fetch apksig.jar  https://dl.google.com/android/maven2/com/android/tools/build/apksig/8.7.3/apksig-8.7.3.jar
 
+# Windows (Git Bash): java takes ';' between classpath entries, there is no zip, grep -P needs a UTF-8 locale, and
+# WORK must be a case-sensitive folder (fsutil file setCaseSensitiveInfo <dir> enable): the smali tree has
+# file names that differ only in case.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) cpath() { echo "$(cygpath -w "$1");$(cygpath -w "$2")"; } ;;
+  *) cpath() { echo "$1:$2"; } ;;
+esac
+export LC_ALL="${LC_ALL:-C.UTF-8}"
+zipdex() { if command -v zip >/dev/null; then zip -q "$1" classes.dex; else jar cfM "$1" classes.dex; fi; }
+
 mkdir -p "$WORK/signer"
 javac -d "$WORK/signer" -cp "$TOOLS/apksig.jar" "$ROOT/build/Sign.java"
-sign() { java -cp "$TOOLS/apksig.jar:$WORK/signer" Sign "$1" "$2" "$3" "$4"; }
+sign() { java -cp "$(cpath "$TOOLS/apksig.jar" "$WORK/signer")" Sign "$1" "$2" "$3" "$4"; }
 
 # java sources -> smali (against compile-only stubs; the device provides the real classes)
 java2smali() { # <stubs dir> <src dir> <out smali dir> [extra classpath jar]
@@ -34,7 +44,7 @@ java2smali() { # <stubs dir> <src dir> <out smali dir> [extra classpath jar]
   javac -nowarn -encoding UTF-8 -Xlint:-options --release 8 -cp "$o/stub" -d "$o/cls" $(find "$2" -name '*.java')
   (cd "$o/stub" && jar cf ../stubs.jar .)
   java -cp "$TOOLS/r8.jar" com.android.tools.r8.D8 --release --min-api 26 --classpath "$o/stubs.jar" --output "$o/dex" $(find "$o/cls" -name '*.class')
-  (cd "$o/dex" && zip -q ../fake.zip classes.dex)
+  (cd "$o/dex" && zipdex ../fake.zip)
   java -jar "$TOOLS/apktool.jar" d -r -f -o "$o/fake" "$o/fake.zip" >/dev/null
   mkdir -p "$3"; cp -r "$o/fake/smali/." "$3/"
 }

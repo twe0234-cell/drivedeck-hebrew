@@ -1,1 +1,1 @@
-package android.os; public final class Bundle { }
+package android.os; public final class Bundle { public Object get(String k){return null;} }

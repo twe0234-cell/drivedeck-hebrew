@@ -26,6 +26,11 @@ public final class VoiceBootReceiver extends BroadcastReceiver {
         RootBootEnforcer.initAndEnforce(ctx);
         KeepAliveService.start(ctx);
         RootBootEnforcer.onCarWake(ctx);
+        if (HeCall.inCall(ctx)) {
+            // he-16: never put DriveDeck over the phone screen during a call
+            HeLog.i("wake " + action + ": in a call, launcher not started");
+            return;
+        }
         try {
             Intent i = new Intent(ctx, MainActivity.class);
             boolean voice = false;

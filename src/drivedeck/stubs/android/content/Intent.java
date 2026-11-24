@@ -7,4 +7,5 @@ public class Intent {
   public Intent setClassName(String p,String c){return this;}
   public String getStringExtra(String k){return null;}
   public Intent putExtra(String k,String v){return this;}
+  public android.os.Bundle getExtras(){return null;}
 }
